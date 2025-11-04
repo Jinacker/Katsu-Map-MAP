@@ -1,6 +1,14 @@
 {
   "buildCommand": "node generate-config.js",
   "outputDirectory": ".",
-  "installCommand": "echo 'No dependencies to install'",
-  "framework": null
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/map.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
 }
