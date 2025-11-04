@@ -126,12 +126,56 @@ try {
    지도 초기화
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-// URL 파라미터로 초기 위치 설정 (예: ?lat=37.5665&lng=126.9780)
+// URL 파라미터 파싱 함수
 const getQueryParam = (name) => new URLSearchParams(window.location.search).get(name);
+
+// 권역과 구 매핑 (서울 25개 구 전체)
+const REGION_MAPPING = {
+  '강북성신': ['성북구', '종로구', '강북구', '도봉구', '노원구'],
+  '중구을지': ['중구', '동대문구', '중랑구'],
+  '성동': ['성동구'],
+  '홍대': ['마포구'],
+  '마포': ['마포구', '서대문구', '은평구'],
+  '용산이태원': ['용산구'],
+  '광진': ['광진구', '강동구'],
+  '영등포여의도': ['영등포구', '양천구', '강서구', '구로구', '금천구'],
+  '서초강남': ['서초구', '강남구', '동작구', '관악구'],
+  '송파': ['송파구']
+};
+
+// 권역별 중심 좌표 및 줌 레벨 (확장된 구들 반영)
+const REGION_CENTERS = {
+  '강북성신': { lat: 37.6400, lng: 127.0200, level: 4 },  // 북부 5개구
+  '중구을지': { lat: 37.5800, lng: 127.0400, level: 5 },  // 중심부 동쪽 3개구
+  '성동': { lat: 37.5506, lng: 127.0407, level: 6 },      // 성동구만
+  '홍대': { lat: 37.5563, lng: 126.9236, level: 6 },      // 홍대 지역
+  '마포': { lat: 37.5850, lng: 126.9300, level: 4 },      // 서북부 3개구
+  '용산이태원': { lat: 37.5345, lng: 126.9906, level: 6 }, // 용산구만
+  '광진': { lat: 37.5450, lng: 127.1200, level: 5 },      // 광진·강동 2개구
+  '영등포여의도': { lat: 37.5200, lng: 126.8500, level: 4 }, // 서남부 5개구
+  '서초강남': { lat: 37.4800, lng: 127.0100, level: 4 },  // 강남 4개구
+  '송파': { lat: 37.5145, lng: 127.1059, level: 6 }       // 송파구만
+};
+
+// URL 파라미터로 권역 설정 (예: ?region=강남)
+const urlRegion = getQueryParam("region");
 const urlLat = parseFloat(getQueryParam("lat"));
 const urlLng = parseFloat(getQueryParam("lng"));
-const initialLat = isNaN(urlLat) ? 37.5665 : urlLat;
-const initialLng = isNaN(urlLng) ? 126.9780 : urlLng;
+
+let initialLat, initialLng, initialLevel;
+
+if (urlRegion && REGION_CENTERS[urlRegion]) {
+  // 권역이 지정된 경우 해당 권역 중심으로 이동
+  const regionCenter = REGION_CENTERS[urlRegion];
+  initialLat = regionCenter.lat;
+  initialLng = regionCenter.lng;
+  initialLevel = regionCenter.level;
+} else {
+  // 권역이 없으면 기본 서울 중심 또는 URL 좌표 사용
+  initialLat = isNaN(urlLat) ? 37.5665 : urlLat;
+  initialLng = isNaN(urlLng) ? 126.9780 : urlLng;
+  initialLevel = 2; // 기본 줌 레벨
+}
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    모바일 최적화: 지도 요소 확대
@@ -150,7 +194,7 @@ const initialLng = isNaN(urlLng) ? 126.9780 : urlLng;
 // level 값이 낮을수록 더 확대됨 (1: 최대 확대, 14: 최대 축소)
 const map = new kakao.maps.Map(document.getElementById("map"), {
 center: new kakao.maps.LatLng(initialLat, initialLng),
-level: 2, // 기존 3에서 2로 낮춰서 더 확대 (약 1.5배 효과)
+level: initialLevel, // URL 파라미터 또는 기본 레벨 사용
 draggable: true, // 드래그 이동 활성화
 scrollwheel: true, // 마우스 휠 줌 활성화
 disableDoubleClick: false, // 더블클릭 줌 활성화
@@ -179,7 +223,18 @@ polygonScript.src = 'seoul-polygons.js';
 polygonScript.onload = function() {
   // seoulDistricts는 seoul-polygons.js에서 로드됨
   if (typeof seoulDistricts !== 'undefined') {
+    // 권역 필터링: URL에 region 파라미터가 있으면 해당 권역의 구들만 표시
+    const allowedDistricts = urlRegion && REGION_MAPPING[urlRegion]
+      ? REGION_MAPPING[urlRegion]
+      : null; // null이면 모든 구 표시
+
+    let displayedCount = 0;
     seoulDistricts.forEach(district => {
+      // 권역 필터링 적용
+      if (allowedDistricts && !allowedDistricts.includes(district.name)) {
+        return; // 이 구는 건너뜀
+      }
+
       // 좌표 배열을 kakao.maps.LatLng 객체로 변환
       const path = district.path.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
 
@@ -194,8 +249,15 @@ polygonScript.onload = function() {
         fillColor: 'transparent',  // 채우기 색상 없음
         fillOpacity: 0             // 채우기 투명도 0
       });
+
+      displayedCount++;
     });
-    console.log(`✅ 서울 ${seoulDistricts.length}개 구 경계선 표시 완료`);
+
+    if (urlRegion) {
+      console.log(`✅ [${urlRegion}] ${displayedCount}개 구 경계선 표시 완료`);
+    } else {
+      console.log(`✅ 서울 ${displayedCount}개 구 경계선 표시 완료`);
+    }
   } else {
     console.warn('⚠️ seoulDistricts 변수를 찾을 수 없습니다.');
   }
