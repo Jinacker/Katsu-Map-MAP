@@ -118,7 +118,9 @@ console.log('🔑 API Key loaded:', API_KEY.substring(0, 10) + '...');
 const script = document.createElement('script');
 script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${API_KEY}&autoload=false`;
 script.onload = function() {
+console.log('✅ Kakao SDK script loaded successfully');
 kakao.maps.load(() => {
+console.log('✅ kakao.maps.load() called');
 try {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    지도 초기화
@@ -166,6 +168,42 @@ setTimeout(() => {
 map.relayout();
 console.log("✅ Map relayout completed");
 }, 100);
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   서울 구 경계선 표시
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+// seoul-polygons.js를 동적으로 로드 (Kakao SDK 로드 후)
+const polygonScript = document.createElement('script');
+polygonScript.src = 'seoul-polygons.js';
+polygonScript.onload = function() {
+  // seoulDistricts는 seoul-polygons.js에서 로드됨
+  if (typeof seoulDistricts !== 'undefined') {
+    seoulDistricts.forEach(district => {
+      // 좌표 배열을 kakao.maps.LatLng 객체로 변환
+      const path = district.path.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
+
+      // 폴리곤 생성 (테두리만 표시)
+      const polygon = new kakao.maps.Polygon({
+        map: map,
+        path: path,
+        strokeWeight: 2,           // 테두리 두께
+        strokeColor: '#004c80',    // 테두리 색상 (진한 파란색)
+        strokeOpacity: 0.8,        // 테두리 투명도
+        strokeStyle: 'solid',      // 테두리 스타일
+        fillColor: 'transparent',  // 채우기 색상 없음
+        fillOpacity: 0             // 채우기 투명도 0
+      });
+    });
+    console.log(`✅ 서울 ${seoulDistricts.length}개 구 경계선 표시 완료`);
+  } else {
+    console.warn('⚠️ seoulDistricts 변수를 찾을 수 없습니다.');
+  }
+};
+polygonScript.onerror = function() {
+  console.error('❌ seoul-polygons.js 로드 실패');
+};
+document.head.appendChild(polygonScript);
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    POI 동적 제거 (MutationObserver 사용)
@@ -252,8 +290,10 @@ console.error("❌ 지도 초기화 중 오류 발생:", err);
 });
 };
 
-script.onerror = function() {
+script.onerror = function(e) {
 console.error('❌ Kakao SDK 로드 실패');
+console.error('Error details:', e);
+console.error('Script src:', script.src);
 };
 
 document.head.appendChild(script);
