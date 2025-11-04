@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>돈가스 지도</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+<style>
+html,
+body {
+width: 100%;
+height: 100%;
+margin: 0;
+padding: 0;
+overflow: hidden;
+-webkit-tap-highlight-color: transparent;
+}
+
+#map {
+width: 100%;
+height: 100%;
+margin: 0;
+padding: 0;
+overflow: hidden;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   옵션: CSS Transform Scale 확대 (더 강력한 확대 필요 시)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   아래 주석을 해제하면 지도 전체가 1.3배 확대됩니다.
+   - 장점: 도로, 글자, 아이콘 모두 선명하게 확대
+   - 단점: 지도 가장자리가 잘릴 수 있음
+
+   필요시 scale(1.3)을 scale(1.5) 등으로 조정 가능
+*/
+
+/*
+#map > div {
+transform: scale(1.3);
+transform-origin: center center;
+width: calc(100% / 1.3);
+height: calc(100% / 1.3);
+}
+*/
+
+/*
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  POI 및 라벨 숨기기 전략
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Kakao Maps API는 POI를 완전히 제거하는 공식 방법이 없습니다.
+  지도 타일 자체에 POI가 렌더링되어 있기 때문입니다.
+
+  하지만 CSS로 DOM에 추가되는 라벨 요소들을 숨길 수 있습니다:
+  - .label: POI 라벨 텍스트
+  - .info: 정보창
+  - .txt_*: 각종 텍스트 클래스
+
+  Kakao는 지도 위에 SVG/Canvas로 라벨을 그리거나,
+  absolute position의 div로 라벨을 추가합니다.
+  이를 모두 숨기기 위해 다양한 선택자를 사용합니다.
+*/
+
+/* 1단계: 기본 POI 라벨 클래스 숨기기 */
+#map .label,
+#map .info,
+#map .txt_name,
+#map .txt_caption,
+#map .txt_sub {
+display: none !important;
+visibility: hidden !important;
+}
+
+/* 2단계: 지도 위의 텍스트 요소 숨기기 (드래그 레이어는 보호) */
+/* Kakao 지도는 absolute position div 안에 span/div로 라벨을 추가합니다 */
+/* 주의: 너무 공격적으로 숨기면 드래그가 안될 수 있음 */
+
+/* 3단계: POI 아이콘과 심볼 숨기기 */
+#map .icon,
+#map .symbol {
+display: none !important;
+}
+
+/* 4단계: Kakao 로고와 저작권은 유지 (법적 요구사항) */
+#map .map_copyright,
+#map .map_logo {
+display: block !important;
+visibility: visible !important;
+}
+
+/* 5단계: 컨트롤러는 유지 */
+#map .control,
+#map .controller {
+display: block !important;
+}
+</style>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=357056533d9bcb829bb5fc08cb0de21c&autoload=false"></script>
+</head>
+
+<body>
+<div id="map"></div>
+
+<script>
+kakao.maps.load(() => {
+try {
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   지도 초기화
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+// URL 파라미터로 초기 위치 설정 (예: ?lat=37.5665&lng=126.9780)
+const getQueryParam = (name) => new URLSearchParams(window.location.search).get(name);
+const urlLat = parseFloat(getQueryParam("lat"));
+const urlLng = parseFloat(getQueryParam("lng"));
+const initialLat = isNaN(urlLat) ? 37.5665 : urlLat;
+const initialLng = isNaN(urlLng) ? 126.9780 : urlLng;
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   모바일 최적화: 지도 요소 확대
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   방법 1: CSS transform scale (권장)
+   - 장점: 간단하고 빠름, 모든 요소가 비례적으로 확대됨
+   - 단점: 좌표 계산 시 scale 보정 필요
+
+   방법 2: 낮은 level + 작은 컨테이너
+   - level을 낮춰서 지도를 확대하고, 컨테이너 크기로 조절
+   - Kakao의 기본 방식이라 안정적
+*/
+
+// 모바일 최적화를 위한 줌 레벨 조정
+// level 값이 낮을수록 더 확대됨 (1: 최대 확대, 14: 최대 축소)
+const map = new kakao.maps.Map(document.getElementById("map"), {
+center: new kakao.maps.LatLng(initialLat, initialLng),
+level: 2, // 기존 3에서 2로 낮춰서 더 확대 (약 1.5배 효과)
+draggable: true, // 드래그 이동 활성화
+scrollwheel: true, // 마우스 휠 줌 활성화
+disableDoubleClick: false, // 더블클릭 줌 활성화
+disableDoubleClickZoom: false, // 더블클릭 줌 활성화
+});
+
+// 전역 객체로 저장
+window.map = map;
+window.markers = [];
+
+console.log("✅ Kakao Map Initialized (Mobile Optimized)");
+
+// 지도 초기화가 완료된 후 relayout 실행
+setTimeout(() => {
+map.relayout();
+console.log("✅ Map relayout completed");
+}, 100);
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   POI 동적 제거 (MutationObserver 사용)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   Kakao Maps는 지도 이동/줌 시 POI 라벨을 동적으로 DOM에 추가합니다.
+   CSS만으로는 미리 숨길 수 없는 요소들을 제거하기 위해
+   MutationObserver를 사용하여 DOM 변경을 감지하고 즉시 제거합니다.
+
+   지도 초기화가 완전히 끝난 후에 시작하여 드래그 기능 보호
+*/
+
+const mapElement = document.getElementById('map');
+
+// POI 제거 함수
+const removePOIElements = () => {
+// 라벨 클래스를 가진 모든 요소 제거
+const labels = mapElement.querySelectorAll('.label, .info, .txt_name, .txt_caption, .txt_sub');
+labels.forEach(el => {
+if (el && el.parentNode) {
+el.style.display = 'none';
+el.style.visibility = 'hidden';
+}
+});
+
+// absolute position div 내의 span 제거 (POI 텍스트)
+const textElements = mapElement.querySelectorAll('div[style*="position: absolute"] span');
+textElements.forEach(el => {
+// Kakao 로고나 저작권 정보가 아닌 경우만 제거
+if (!el.closest('.map_copyright') && !el.closest('.map_logo')) {
+el.style.display = 'none';
+}
+});
+};
+
+// MutationObserver 디바운싱 (드래그 성능 최적화)
+let poiRemovalTimeout;
+const debouncedRemovePOI = () => {
+clearTimeout(poiRemovalTimeout);
+poiRemovalTimeout = setTimeout(() => {
+removePOIElements();
+}, 100); // 100ms 디바운스
+};
+
+// MutationObserver 설정
+const observer = new MutationObserver((mutations) => {
+// DOM 변경 감지 시 디바운스된 POI 제거
+debouncedRemovePOI();
+});
+
+// 지도 초기화 완료 후 관찰 시작 (드래그 기능 보호)
+setTimeout(() => {
+observer.observe(mapElement, {
+childList: true,      // 자식 요소 추가/제거 감지
+subtree: true,        // 모든 하위 요소 감지
+attributes: false,    // 속성 변경은 무시 (성능 최적화)
+});
+
+// 초기 실행
+removePOIElements();
+console.log("✅ POI 제거 시작");
+}, 500); // 지도 초기화 후 500ms 대기
+
+// 지도 이벤트 발생 시에도 POI 제거 실행
+kakao.maps.event.addListener(map, 'idle', () => {
+// idle: 지도 이동/줌 완료 후 발생
+removePOIElements();
+});
+
+// 드래그 시작 시 POI 제거 일시 중지 (성능 최적화)
+let isDragging = false;
+kakao.maps.event.addListener(map, 'dragstart', () => {
+isDragging = true;
+});
+
+kakao.maps.event.addListener(map, 'dragend', () => {
+isDragging = false;
+removePOIElements();
+});
+
+} catch (err) {
+console.error("❌ 지도 초기화 중 오류 발생:", err);
+}
+});
+</script>
+</body>
+</html>
