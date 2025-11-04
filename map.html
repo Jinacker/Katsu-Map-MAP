@@ -94,13 +94,30 @@ visibility: visible !important;
 display: block !important;
 }
 </style>
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=357056533d9bcb829bb5fc08cb0de21c&autoload=false"></script>
+<!-- config.js에서 API 키 로드 (로컬 개발용) -->
+<!-- React Native WebView에서는 injectedJavaScript로 주입 -->
+<script src="config.js"></script>
 </head>
 
 <body>
 <div id="map"></div>
 
 <script>
+// Kakao SDK 동적 로드 (환경변수 사용)
+(function() {
+const API_KEY = window.KAKAO_MAP_JS_KEY;
+
+if (!API_KEY) {
+console.error('❌ API 키가 설정되지 않았습니다. config.js 파일을 확인하세요.');
+document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">API 키가 설정되지 않았습니다.</div>';
+return;
+}
+
+console.log('🔑 API Key loaded:', API_KEY.substring(0, 10) + '...');
+
+const script = document.createElement('script');
+script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${API_KEY}&autoload=false`;
+script.onload = function() {
 kakao.maps.load(() => {
 try {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -233,6 +250,14 @@ removePOIElements();
 console.error("❌ 지도 초기화 중 오류 발생:", err);
 }
 });
+};
+
+script.onerror = function() {
+console.error('❌ Kakao SDK 로드 실패');
+};
+
+document.head.appendChild(script);
+})();
 </script>
 </body>
 </html>
