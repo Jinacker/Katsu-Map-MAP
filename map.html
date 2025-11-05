@@ -147,7 +147,7 @@ const REGION_MAPPING = {
 const REGION_CENTERS = {
   '강북성신': { lat: 37.6150, lng: 127.0000, level: 8 },  // 성북구+종로구+강북구 (3개구)
   '동대문': { lat: 37.5950, lng: 127.0650, level: 7 },    // 동대문구+중랑구 (2개구)
-  '성동': { lat: 37.5550, lng: 127.0450, level: 7 },      // 성동구 (1개구)
+  '성동': { lat: 37.5500, lng: 127.0600, level: 7 },      // 성동구+광진구 (2개구)
   '홍대': { lat: 37.5700, lng: 126.9300, level: 7 },      // 마포구+서대문구 (2개구)
   '마포': { lat: 37.6000, lng: 126.9200, level: 7 },      // 마포구+은평구 (2개구)
   '용산이태원': { lat: 37.5450, lng: 126.9900, level: 7 }, // 용산구+중구 (2개구)
@@ -263,13 +263,13 @@ polygonScript.onload = function() {
 
     // 권역이 선택된 경우, 외부 영역을 어둡게 처리
     if (urlRegion && regionPaths.length > 0) {
-      // 서울 전체를 덮는 큰 사각형 (외곽 경계)
+      // 서울과 경기도 전체를 덮는 큰 사각형 (외곽 경계 - 더 넓게 확장)
       const outerBounds = [
-        new kakao.maps.LatLng(37.7200, 126.7000), // 북서
-        new kakao.maps.LatLng(37.7200, 127.3000), // 북동
-        new kakao.maps.LatLng(37.4000, 127.3000), // 남동
-        new kakao.maps.LatLng(37.4000, 126.7000), // 남서
-        new kakao.maps.LatLng(37.7200, 126.7000)  // 북서 (닫기)
+        new kakao.maps.LatLng(38.2000, 126.4000), // 북서
+        new kakao.maps.LatLng(38.2000, 127.7000), // 북동
+        new kakao.maps.LatLng(37.2000, 127.7000), // 남동
+        new kakao.maps.LatLng(37.2000, 126.4000), // 남서
+        new kakao.maps.LatLng(38.2000, 126.4000)  // 북서 (닫기)
       ];
 
       // 오버레이 폴리곤: 외곽 사각형에서 권역 구들을 뺀 영역
