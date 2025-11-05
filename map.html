@@ -133,7 +133,7 @@ const getQueryParam = (name) => new URLSearchParams(window.location.search).get(
 const REGION_MAPPING = {
   '강북성신': ['성북구', '종로구', '강북구'],
   '동대문': ['동대문구', '중랑구'],
-  '성동': ['성동구'],
+  '성동': ['성동구','광진구'],
   '홍대': ['마포구', '서대문구'],
   '마포': ['마포구', '은평구'],
   '용산이태원': ['용산구','중구'],
@@ -169,7 +169,7 @@ if (urlRegion && REGION_CENTERS[urlRegion]) {
   const regionCenter = REGION_CENTERS[urlRegion];
   initialLat = regionCenter.lat;
   initialLng = regionCenter.lng;
-  initialLevel = regionCenter.level;
+  initialLevel = 8; // 권역 시점이동 시 무조건 2km (level 8)
 } else {
   // 권역이 없으면 기본 서울 중심 또는 URL 좌표 사용
   initialLat = isNaN(urlLat) ? 37.5665 : urlLat;
