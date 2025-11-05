@@ -232,6 +232,8 @@ polygonScript.onload = function() {
       : null; // null이면 모든 구 표시
 
     let displayedCount = 0;
+    const regionPaths = []; // 권역에 포함된 구들의 경계 저장
+
     seoulDistricts.forEach(district => {
       // 권역 필터링 적용
       if (allowedDistricts && !allowedDistricts.includes(district.name)) {
@@ -241,12 +243,15 @@ polygonScript.onload = function() {
       // 좌표 배열을 kakao.maps.LatLng 객체로 변환
       const path = district.path.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
 
+      // 권역 경로에 추가 (오버레이용)
+      regionPaths.push(path);
+
       // 폴리곤 생성 (테두리만 표시)
       const polygon = new kakao.maps.Polygon({
         map: map,
         path: path,
         strokeWeight: 4,           // 테두리 두께
-        strokeColor: '#F57C00',    // 테두리 색상 (진한 오렌지)
+        strokeColor: '#FB8C00',    // 테두리 색상 (진한 오렌지)
         strokeOpacity: 0.8,        // 테두리 투명도
         strokeStyle: 'solid',      // 테두리 스타일
         fillColor: 'transparent',  // 채우기 색상 없음
@@ -255,6 +260,32 @@ polygonScript.onload = function() {
 
       displayedCount++;
     });
+
+    // 권역이 선택된 경우, 외부 영역을 어둡게 처리
+    if (urlRegion && regionPaths.length > 0) {
+      // 서울 전체를 덮는 큰 사각형 (외곽 경계)
+      const outerBounds = [
+        new kakao.maps.LatLng(37.7200, 126.7000), // 북서
+        new kakao.maps.LatLng(37.7200, 127.3000), // 북동
+        new kakao.maps.LatLng(37.4000, 127.3000), // 남동
+        new kakao.maps.LatLng(37.4000, 126.7000), // 남서
+        new kakao.maps.LatLng(37.7200, 126.7000)  // 북서 (닫기)
+      ];
+
+      // 오버레이 폴리곤: 외곽 사각형에서 권역 구들을 뺀 영역
+      const overlayPath = [outerBounds, ...regionPaths];
+
+      const overlayPolygon = new kakao.maps.Polygon({
+        map: map,
+        path: overlayPath,
+        strokeWeight: 0,
+        strokeOpacity: 0,
+        fillColor: '#000000',      // 검은색 오버레이
+        fillOpacity: 0.3         // 30% 투명도 (더 은은하게)
+      });
+
+      console.log(`✅ 권역 외부 오버레이 적용 완료`);
+    }
 
     if (urlRegion) {
       console.log(`✅ [${urlRegion}] ${displayedCount}개 구 경계선 표시 완료`);
