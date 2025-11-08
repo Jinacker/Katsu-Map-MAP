@@ -384,10 +384,12 @@ removePOIElements();
    React Native WebView 통신 및 마커 업데이트
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-// 마커 이미지 캐시
-const markerImageCache = {};
+// --- 전역 상태 변수 ---
+let currentRestaurants = []; // 현재 표시된 맛집 목록
+let selectedRestaurantLatLng = null; // 사용자가 선택한 맛집의 좌표
+const markerImageCache = {}; // 마커 이미지 캐시
 
-// recommendLevel에 따른 속성 매핑
+// --- 마커 속성 정의 ---
 const levelProperties = {
   top5:   { color: '#B56EFF', zIndex: 4 },
   best:   { color: '#5CC8FF', zIndex: 3 },
@@ -396,107 +398,125 @@ const levelProperties = {
   default:{ color: '#888888', zIndex: 0 }
 };
 
-// 마커 SVG 생성 함수 (떠다니는 효과)
-const getMarkerSvg = (color) => `
-  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">
-    <ellipse cx="13" cy="32" rx="7" ry="2.5" fill="#000" opacity="0.25"/>
-    <path fill="${color}" d="M13 0C7.486 0 3 4.486 3 10c0 8.75 10 20 10 20s10-11.25 10-20C23 4.486 18.514 0 13 0Z" />
-    <circle fill="#FFF" cx="13" cy="10" r="4" />
-  </svg>
-`;
+// --- 마커 SVG 및 이미지 생성 ---
 
-// 마커 이미지 생성 및 캐싱 함수
-const getMarkerImage = (level) => {
+// 마커 SVG 생성 (선택 상태에 따라 테두리 추가)
+const getMarkerSvg = (color, isSelected = false) => {
+  const stroke = isSelected ? 'stroke="#0033FF" stroke-width="3"' : '';
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+      <ellipse cx="14" cy="33" rx="8" ry="3" fill="#000" opacity="0.25"/>
+      <path fill="${color}" d="M14 0C8.486 0 4 4.486 4 10c0 8.75 10 20 10 20s10-11.25 10-20C24 4.486 19.514 0 14 0Z" ${stroke}/>
+      <circle fill="#FFF" cx="14" cy="10" r="4" />
+    </svg>
+  `;
+};
+
+// 마커 이미지 생성 및 캐싱
+const getMarkerImage = (level, isSelected = false) => {
   const props = levelProperties[level] || levelProperties.default;
   const color = props.color;
+  const cacheKey = `${color}-${isSelected}`; // 선택 상태에 따라 캐시 키 분리
 
-  // zIndex는 이미지에 종속되지 않으므로 색상 기준으로 캐싱
-  if (markerImageCache[color]) {
-    return markerImageCache[color];
+  if (markerImageCache[cacheKey]) {
+    return markerImageCache[cacheKey];
   }
 
-  const svg = getMarkerSvg(color);
+  const svg = getMarkerSvg(color, isSelected);
   const imageUrl = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
-  const imageSize = new kakao.maps.Size(26, 34);
-  const imageOptions = { offset: new kakao.maps.Point(13, 34) };
+  const imageSize = new kakao.maps.Size(28, 36);
+  const imageOptions = { offset: new kakao.maps.Point(14, 36) };
 
   const markerImage = new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
-  markerImageCache[color] = markerImage;
+  markerImageCache[cacheKey] = markerImage;
   return markerImage;
 };
 
-// 마커 업데이트 함수
+// --- 마커 업데이트 ---
+
+// 마커를 다시 그리는 함수
 const updateMarkers = (restaurants) => {
-  if (!window.map) {
-    console.warn('⚠️ 지도가 아직 초기화되지 않았습니다. 마커를 업데이트할 수 없습니다.');
-    return;
-  }
+  if (!window.map) return;
 
   // 1. 기존 마커 제거
-  if (window.markers && window.markers.length > 0) {
-    window.markers.forEach(marker => marker.setMap(null));
-  }
-  window.markers = []; // 마커 배열 초기화
+  window.markers.forEach(marker => marker.setMap(null));
+  window.markers = [];
 
   // 2. 새로운 마커 생성
   restaurants.forEach(restaurant => {
-    if (restaurant.lat == null || restaurant.lng == null) {
-      console.warn('⚠️ 위도/경도 값이 없는 레스토랑 데이터:', restaurant);
-      return;
-    }
+    if (restaurant.lat == null || restaurant.lng == null) return;
 
+    const isSelected = selectedRestaurantLatLng && restaurant.lat === selectedRestaurantLatLng.lat && restaurant.lng === selectedRestaurantLatLng.lng;
     const props = levelProperties[restaurant.recommendLevel] || levelProperties.default;
-    const position = new kakao.maps.LatLng(restaurant.lat, restaurant.lng);
-    const markerImage = getMarkerImage(restaurant.recommendLevel);
+    const markerImage = getMarkerImage(restaurant.recommendLevel, isSelected);
 
     const marker = new kakao.maps.Marker({
       map: window.map,
-      position: position,
+      position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
       image: markerImage,
-      zIndex: props.zIndex
+      zIndex: isSelected ? 999 : props.zIndex // 선택된 마커를 최상단으로
     });
 
     window.markers.push(marker);
   });
 
-  console.log(`✅ ${restaurants.length}개의 마커를 지도에 표시했습니다.`);
+  console.log(`✅ ${restaurants.length}개의 마커를 지도에 표시했습니다. (선택된 핀: ${selectedRestaurantLatLng ? '있음' : '없음'})`);
 };
 
-// React Native로부터 메시지 수신
+// --- WebView 메시지 핸들러 ---
+
+// React Native로부터 메시지를 수신하고 처리하는 함수
 const handleMessage = (event) => {
   try {
-    if (typeof event.data !== 'string') return;
+    const eventData = event.data;
+    if (typeof eventData !== 'string') return;
 
-    const message = JSON.parse(event.data);
+    const message = JSON.parse(eventData);
 
+    // 맛집 목록 업데이트
     if (message.type === 'UPDATE_RESTAURANTS' && Array.isArray(message.payload)) {
       console.log(`📦 [WebView] ${message.payload.length}개의 레스토랑 데이터 수신`);
-      updateMarkers(message.payload);
-    } else if (message.type === 'PAN_TO' && message.payload) {
-      console.log(`🗺️ 시점 이동:`, message.payload);
+      currentRestaurants = message.payload; // 현재 목록 저장
+      selectedRestaurantLatLng = null; // 선택 상태 초기화
+      updateMarkers(currentRestaurants);
+    }
+    // 지도 시점 이동
+    else if (message.type === 'PAN_TO' && message.payload) {
+      console.log(`🗺️ [WebView] 시점 이동 요청:`, message.payload);
       const { lat, lng, level } = message.payload;
-      if (lat != null && lng != null) {
-        const targetPosition = new kakao.maps.LatLng(lat, lng);
+
+      if (lat != null && lng != null && window.map) {
+        // 1. 좌표를 중심으로 즉시 이동 (애니메이션 충돌 방지)
+        window.map.setCenter(new kakao.maps.LatLng(lat, lng));
+        if (level != null) {
+          window.map.setLevel(level);
+        }
+
+        // 2. 선택된 핀 좌표 저장
+        selectedRestaurantLatLng = { lat, lng };
+
+        // 3. 마커 다시 그려서 선택된 핀 강조
+        updateMarkers(currentRestaurants);
         
-        // setLevel의 anchor와 animate 옵션을 사용하여 줌과 이동을 한번에 부드럽게 처리
-        window.map.setLevel(level || window.map.getLevel(), {
-            anchor: targetPosition,
-            animate: {
-                duration: 500 // 0.5초 동안 애니메이션
-            }
-        });
+        console.log(`✅ [WebView] 시점 이동 및 핀 강조 완료`);
       }
     }
   } catch (e) {
-    // 여러가지 이유로 파싱에 실패할 수 있으므로 에러를 출력하지 않음
+    // console.error('메시지 처리 중 오류:', e);
   }
 };
 
-// 이벤트 리스너 등록
-document.addEventListener('message', handleMessage);
-window.addEventListener('message', handleMessage); // 웹 테스트용
+// --- 이벤트 리스너 등록 ---
+// 기존 리스너를 모두 제거하고 새로 등록하여 중복 실행 방지
+if (window.messageListener) {
+    document.removeEventListener('message', window.messageListener);
+    window.removeEventListener('message', window.messageListener);
+}
+window.messageListener = handleMessage; // 전역 스코프에 할당
+document.addEventListener('message', window.messageListener);
+window.addEventListener('message', window.messageListener); // 웹 테스트용
 
-console.log('✅ [WebView] React Native 메시지 리스너가 준비되었습니다.');
+console.log('✅ [WebView] 새로운 React Native 메시지 리스너가 준비되었습니다.');
 
 } catch (err) {
 console.error("❌ 지도 초기화 중 오류 발생:", err);
