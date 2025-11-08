@@ -467,7 +467,7 @@ const getMarkerPinSvg = (color, isSelected = false, isFavorite = false) => {
   if (isSelected) {
     stroke = 'stroke="#E74C3C" stroke-width="3"'; // 선택된 핀은 빨간색 테두리
   } else if (isFavorite) {
-    stroke = 'stroke="##FFFF00" stroke-width="3"'; // 즐겨찾기 핀은 노란색 테두리
+    stroke = 'stroke="#FFFF00" stroke-width="3"'; // 즐겨찾기 핀은 노란색 테두리
   }
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
