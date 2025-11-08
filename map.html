@@ -211,11 +211,48 @@ map.setMaxLevel(8); // level 8 = 2km 범위
 console.log("✅ Kakao Map Initialized (Mobile Optimized, Max 2km range)");
 
 // 지도 초기화가 완료된 후 relayout 실행
-setTimeout(() => {
-map.relayout();
-console.log("✅ Map relayout completed");
-}, 100);
+    setTimeout(() => {
+    map.relayout();
+    console.log("✅ Map relayout completed");
+    }, 100);
 
+    // --- 내 위치 표시 기능 추가 ---
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const myPosition = new kakao.maps.LatLng(lat, lng);
+
+                // 내 위치 마커 SVG (파란색 원)
+                const svg = `
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+                    <circle cx="14" cy="14" r="10" fill="#1B95E0" stroke="#FFFFFF" stroke-width="3"/>
+                  </svg>
+                `;
+                const imageUrl = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
+                const imageSize = new kakao.maps.Size(28, 28);
+                const imageOptions = { offset: new kakao.maps.Point(14, 14) };
+                const myLocationMarkerImage = new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
+
+                // 마커를 생성하고 지도에 표시합니다.
+                new kakao.maps.Marker({
+                    position: myPosition,
+                    map: window.map,
+                    image: myLocationMarkerImage,
+                    zIndex: 1000 // 다른 마커들보다 항상 위에 있도록 z-index를 높게 설정
+                });
+                console.log(`✅ 내 위치(${lat.toFixed(4)}, ${lng.toFixed(4)})에 핀을 추가했습니다.`);
+            },
+            (error) => {
+                console.warn('⚠️ 내 위치를 가져오는 데 실패했습니다.', error);
+            },
+            { enableHighAccuracy: true }
+        );
+    } else {
+        console.warn('⚠️ 이 브라우저에서는 Geolocation을 지원하지 않습니다.');
+    }
+    // --- 내 위치 표시 기능 끝 ---
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    서울 구 경계선 표시
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
