@@ -484,7 +484,7 @@ const handleMessage = (event) => {
         }
         
         // 2. 부드럽게 중심으로 이동
-        window.map.panTo(targetPosition);
+        window.map.setCenter(targetPosition);
       }
     }
   } catch (e) {
