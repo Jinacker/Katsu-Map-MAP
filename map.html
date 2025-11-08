@@ -472,6 +472,20 @@ const handleMessage = (event) => {
     if (message.type === 'UPDATE_RESTAURANTS' && Array.isArray(message.payload)) {
       console.log(`📦 [WebView] ${message.payload.length}개의 레스토랑 데이터 수신`);
       updateMarkers(message.payload);
+    } else if (message.type === 'PAN_TO' && message.payload) {
+      console.log(`🗺️ 시점 이동:`, message.payload);
+      const { lat, lng, level } = message.payload;
+      if (lat != null && lng != null) {
+        const targetPosition = new kakao.maps.LatLng(lat, lng);
+        
+        // 1. 줌 레벨 먼저 설정 (애니메이션 부드러움을 위해)
+        if (level != null) {
+          window.map.setLevel(level, { animate: true });
+        }
+        
+        // 2. 부드럽게 중심으로 이동
+        window.map.panTo(targetPosition);
+      }
     }
   } catch (e) {
     // 여러가지 이유로 파싱에 실패할 수 있으므로 에러를 출력하지 않음
