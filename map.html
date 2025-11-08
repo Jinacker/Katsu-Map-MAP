@@ -400,7 +400,7 @@ const levelProperties = {
 
 // --- 마커 SVG 및 이미지 생성 ---
 
-// 마커 SVG 생성 (선택 상태에 따라 테두리 색상 변경)
+// 마커 SVG 생성 (선택 상태에 따라 테두리 추가)
 const getMarkerSvg = (color, isSelected = false) => {
   const stroke = isSelected ? 'stroke="#FF0000" stroke-width="3"' : ''; // 빨간색으로 변경
   return `
@@ -416,7 +416,7 @@ const getMarkerSvg = (color, isSelected = false) => {
 const getMarkerImage = (level, isSelected = false) => {
   const props = levelProperties[level] || levelProperties.default;
   const color = props.color;
-  const cacheKey = `${color}-${isSelected}`;
+  const cacheKey = `${color}-${isSelected}`; // 선택 상태에 따라 캐시 키 분리
 
   if (markerImageCache[cacheKey]) {
     return markerImageCache[cacheKey];
@@ -438,9 +438,11 @@ const getMarkerImage = (level, isSelected = false) => {
 const updateMarkers = (restaurants) => {
   if (!window.map) return;
 
+  // 1. 기존 마커 제거
   window.markers.forEach(marker => marker.setMap(null));
   window.markers = [];
 
+  // 2. 새로운 마커 생성
   restaurants.forEach(restaurant => {
     if (restaurant.lat == null || restaurant.lng == null) return;
 
@@ -452,15 +454,31 @@ const updateMarkers = (restaurants) => {
       map: window.map,
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
       image: markerImage,
-      zIndex: isSelected ? 999 : props.zIndex
+      zIndex: isSelected ? 999 : props.zIndex // 선택된 마커를 최상단으로
+    });
+
+    // [NEW] 마커 클릭 이벤트 추가
+    kakao.maps.event.addListener(marker, 'click', () => {
+        // RN으로 메시지 전송
+        if (window.ReactNativeWebView) {
+            const message = {
+                type: 'SHOW_DIRECTIONS',
+                payload: restaurant
+            };
+            window.ReactNativeWebView.postMessage(JSON.stringify(message));
+            console.log('🗺️ 길찾기 요청:', restaurant.name);
+        }
     });
 
     window.markers.push(marker);
   });
+
+  console.log(`✅ ${restaurants.length}개의 마커를 지도에 표시했습니다. (선택된 핀: ${selectedRestaurantLatLng ? '있음' : '없음'})`);
 };
 
 // --- WebView 메시지 핸들러 ---
 
+// React Native로부터 메시지를 수신하고 처리하는 함수
 const handleMessage = (event) => {
   try {
     const eventData = event.data;
@@ -471,8 +489,8 @@ const handleMessage = (event) => {
     // 맛집 목록 업데이트
     if (message.type === 'UPDATE_RESTAURANTS' && Array.isArray(message.payload)) {
       console.log(`📦 [WebView] ${message.payload.length}개의 레스토랑 데이터 수신`);
-      currentRestaurants = message.payload;
-      selectedRestaurantLatLng = null; // 새 목록이 오면 선택 상태 초기화
+      currentRestaurants = message.payload; // 현재 목록 저장
+      selectedRestaurantLatLng = null; // 선택 상태 초기화
       updateMarkers(currentRestaurants);
     }
     // 지도 시점 이동
@@ -507,11 +525,12 @@ const handleMessage = (event) => {
 };
 
 // --- 이벤트 리스너 등록 ---
+// 기존 리스너를 모두 제거하고 새로 등록하여 중복 실행 방지
 if (window.messageListener) {
     document.removeEventListener('message', window.messageListener);
     window.removeEventListener('message', window.messageListener);
 }
-window.messageListener = handleMessage;
+window.messageListener = handleMessage; // 전역 스코프에 할당
 document.addEventListener('message', window.messageListener);
 window.addEventListener('message', window.messageListener); // 웹 테스트용
 
