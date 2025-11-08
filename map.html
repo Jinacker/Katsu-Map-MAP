@@ -478,13 +478,13 @@ const handleMessage = (event) => {
       if (lat != null && lng != null) {
         const targetPosition = new kakao.maps.LatLng(lat, lng);
         
-        // 1. 줌 레벨 먼저 설정 (애니메이션 부드러움을 위해)
-        if (level != null) {
-          window.map.setLevel(level, { animate: true });
-        }
-        
-        // 2. 부드럽게 중심으로 이동
-        window.map.setCenter(targetPosition);
+        // setLevel의 anchor와 animate 옵션을 사용하여 줌과 이동을 한번에 부드럽게 처리
+        window.map.setLevel(level || window.map.getLevel(), {
+            anchor: targetPosition,
+            animate: {
+                duration: 500 // 0.5초 동안 애니메이션
+            }
+        });
       }
     }
   } catch (e) {
