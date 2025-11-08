@@ -502,21 +502,16 @@ const handleMessage = (event) => {
         // 1. 새로운 핀 좌표를 선택 상태로 저장
         selectedRestaurantLatLng = { lat, lng };
 
-        // 2. 부드러운 이동 애니메이션 시작
-        window.map.setLevel(level || window.map.getLevel(), {
-            anchor: new kakao.maps.LatLng(lat, lng),
-            animate: {
-                duration: 500 // 0.5초 동안 애니메이션
-            }
-        });
+        // 2. 안정성을 위해 애니메이션 없이 즉시 이동
+        window.map.setCenter(new kakao.maps.LatLng(lat, lng));
+        if (level != null) {
+          window.map.setLevel(level);
+        }
 
-        // 3. 애니메이션이 끝난 후, 마커를 다시 그려 하이라이트 적용
-        kakao.maps.event.addListener(window.map, 'idle', function redrawAfterAnimation() {
-            // 이벤트 리스너가 한번만 실행되도록 제거
-            kakao.maps.event.removeListener(window.map, 'idle', redrawAfterAnimation);
-            updateMarkers(currentRestaurants);
-            console.log(`✅ [WebView] 시점 이동 및 핀 강조 완료`);
-        });
+        // 3. 마커를 즉시 다시 그려서 하이라이트 적용
+        updateMarkers(currentRestaurants);
+        
+        console.log(`✅ [WebView] 시점 이동 및 핀 강조 완료`);
       }
     }
   } catch (e) {
