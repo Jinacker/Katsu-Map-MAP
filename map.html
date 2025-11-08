@@ -396,11 +396,18 @@ const levelColorMapping = {
   default: '#888888' // 기본 색상
 };
 
-// 마커 SVG 생성 함수
+// 마커 SVG 생성 함수 (새로운 디자인)
 const getMarkerSvg = (color) => `
-  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="44" viewBox="0 0 32 44">
-    <path fill="${color}" d="M16 0C7.163 0 0 7.163 0 16c0 12.25 16 28 16 28s16-15.75 16-28C32 7.163 24.837 0 16 0Z"/>
-    <circle fill="#FFFFFF" cx="16" cy="16" r="7"/>
+  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">
+    <defs>
+      <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+        <feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-color="#000" flood-opacity="0.5" />
+      </filter>
+    </defs>
+    <g filter="url(#shadow)">
+      <path fill="${color}" d="M13 0C7.486 0 3 4.486 3 10c0 8.75 10 20 10 20s10-11.25 10-20C23 4.486 18.514 0 13 0Z" />
+      <circle fill="#FFF" cx="13" cy="10" r="4" />
+    </g>
   </svg>
 `;
 
@@ -413,8 +420,8 @@ const getMarkerImage = (level) => {
 
   const svg = getMarkerSvg(color);
   const imageUrl = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
-  const imageSize = new kakao.maps.Size(32, 44);
-  const imageOptions = { offset: new kakao.maps.Point(16, 44) };
+  const imageSize = new kakao.maps.Size(26, 34); // 사이즈 변경
+  const imageOptions = { offset: new kakao.maps.Point(13, 34) }; // 오프셋 변경 (중심 하단)
 
   const markerImage = new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
   markerImageCache[color] = markerImage;
