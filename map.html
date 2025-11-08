@@ -402,7 +402,7 @@ const levelProperties = {
 
 // 마커 SVG 생성 (테두리 잘림 방지를 위해 여백 추가)
 const getMarkerSvg = (color, isSelected = false) => {
-  const stroke = isSelected ? 'stroke="#FF0000" stroke-width="3"' : '';
+  const stroke = isSelected ? 'stroke="#E74C3C" stroke-width="3"' : ''; // 은은한 빨간색으로 변경
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
       <g transform="translate(2, 2)">
@@ -457,8 +457,25 @@ const updateMarkers = (restaurants) => {
       zIndex: isSelected ? 999 : props.zIndex
     });
 
-    // 마커 클릭 이벤트 추가 (디버깅 로그 추가)
+    // 마커 클릭 이벤트 추가
     kakao.maps.event.addListener(marker, 'click', () => {
+        // 1. 핀 클릭 시 시점 이동 (레벨 5 이상일 때만)
+        const currentLevel = window.map.getLevel();
+        if (currentLevel >= 5) { // 레벨 5부터 시점 이동
+            selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
+            window.map.setCenter(new kakao.maps.LatLng(restaurant.lat, restaurant.lng));
+            updateMarkers(currentRestaurants); // 강조 및 중앙 정렬
+            console.log(`🗺️ 핀 클릭 시 시점 이동: ${restaurant.name}`);
+        } else {
+            // 레벨 4 이하는 시점 이동 없이 강조만
+            if (!selectedRestaurantLatLng || selectedRestaurantLatLng.lat !== restaurant.lat || selectedRestaurantLatLng.lng !== restaurant.lng) {
+                selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
+                updateMarkers(currentRestaurants);
+                console.log(`🗺️ 핀 클릭 시 강조: ${restaurant.name} (레벨 ${currentLevel}로 시점 이동 안함)`);
+            }
+        }
+
+        // 2. RN으로 메시지 전송 (기존 로직)
         if (window.ReactNativeWebView) {
             const message = {
                 type: 'SHOW_DIRECTIONS',
