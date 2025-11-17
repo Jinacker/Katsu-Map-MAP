@@ -161,10 +161,16 @@ const REGION_CENTERS = {
 const urlRegion = getQueryParam("region");
 const urlLat = parseFloat(getQueryParam("lat"));
 const urlLng = parseFloat(getQueryParam("lng"));
+const isViewAll = getQueryParam("viewAll") === 'true'; // 즐겨찾기 지도 모드
 
 let initialLat, initialLng, initialLevel;
 
-if (urlRegion && REGION_CENTERS[urlRegion]) {
+if (isViewAll) {
+  // 즐겨찾기 지도 모드: 서울 전체 보기
+  initialLat = 37.5665; // 서울 중심
+  initialLng = 126.9780;
+  initialLevel = 10; // 서울 전역이 보이도록 넓은 범위
+} else if (urlRegion && REGION_CENTERS[urlRegion]) {
   // 권역이 지정된 경우 해당 권역 중심으로 이동
   const regionCenter = REGION_CENTERS[urlRegion];
   initialLat = regionCenter.lat;
@@ -276,7 +282,8 @@ polygonScript.onload = function() {
   // seoulDistricts는 seoul-polygons.js에서 로드됨
   if (typeof seoulDistricts !== 'undefined') {
     // 권역 필터링: URL에 region 파라미터가 있으면 해당 권역의 구들만 표시
-    const allowedDistricts = urlRegion && REGION_MAPPING[urlRegion]
+    // isViewAll이면 모든 구 표시 (필터링 없음)
+    const allowedDistricts = (!isViewAll && urlRegion && REGION_MAPPING[urlRegion])
       ? REGION_MAPPING[urlRegion]
       : null; // null이면 모든 구 표시
 
@@ -284,7 +291,7 @@ polygonScript.onload = function() {
     const regionPaths = []; // 권역에 포함된 구들의 경계 저장
 
     seoulDistricts.forEach(district => {
-      // 권역 필터링 적용
+      // 권역 필터링 적용 (isViewAll일 때는 필터링 안함)
       if (allowedDistricts && !allowedDistricts.includes(district.name)) {
         return; // 이 구는 건너뜀
       }
@@ -310,8 +317,10 @@ polygonScript.onload = function() {
       displayedCount++;
     });
 
-    // 권역이 선택된 경우, 외부 영역을 어둡게 처리
-    if (urlRegion && regionPaths.length > 0) {
+    // 외부 영역을 어둡게 처리
+    // - isViewAll: 서울 전체(25개 구) 외곽만 블러
+    // - 권역 모드: 해당 권역 외부만 블러
+    if ((isViewAll || urlRegion) && regionPaths.length > 0) {
       // 서울과 경기도 전체를 덮는 큰 사각형 (외곽 경계 - 더 넓게 확장)
       const outerBounds = [
         new kakao.maps.LatLng(38.2000, 126.4000), // 북서
@@ -333,10 +342,16 @@ polygonScript.onload = function() {
         fillOpacity: 0.3         // 30% 투명도 (더 은은하게)
       });
 
-      console.log(`✅ 권역 외부 오버레이 적용 완료`);
+      if (isViewAll) {
+        console.log(`✅ 서울 외곽 블러 오버레이 적용 완료 (서울 전역 밝음)`);
+      } else {
+        console.log(`✅ 권역 외부 오버레이 적용 완료`);
+      }
     }
 
-    if (urlRegion) {
+    if (isViewAll) {
+      console.log(`✅ [즐겨찾기 지도] 서울 전역 ${displayedCount}개 구 경계선 표시 완료 (블러 없음)`);
+    } else if (urlRegion) {
       console.log(`✅ [${urlRegion}] ${displayedCount}개 구 경계선 표시 완료`);
     } else {
       console.log(`✅ 서울 ${displayedCount}개 구 경계선 표시 완료`);
