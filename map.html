@@ -167,9 +167,9 @@ let initialLat, initialLng, initialLevel;
 
 if (isViewAll) {
   // 즐겨찾기 지도 모드: 서울 전체 보기
-  initialLat = 37.5665; // 서울 중심
-  initialLng = 126.9780;
-  initialLevel = 10; // 서울 전역이 보이도록 넓은 범위
+  initialLat = 37.5640; // 서울 정중앙 (시청 기준보다 약간 북쪽)
+  initialLng = 126.9900;
+  initialLevel = 13; // 서울 전역이 다 보이도록 더 넓은 범위
 } else if (urlRegion && REGION_CENTERS[urlRegion]) {
   // 권역이 지정된 경우 해당 권역 중심으로 이동
   const regionCenter = REGION_CENTERS[urlRegion];
@@ -211,8 +211,14 @@ disableDoubleClickZoom: false, // 더블클릭 줌 활성화
 window.map = map;
 window.markers = [];
 
-// 줌 레벨 제한 설정 (최대 2km까지만 축소 가능)
-map.setMaxLevel(8); // level 8 = 2km 범위
+// 줌 레벨 제한 설정
+if (isViewAll) {
+  // 즐겨찾기 지도는 서울 전역을 볼 수 있도록 레벨 13까지 허용
+  map.setMaxLevel(13);
+} else {
+  // 일반 지도는 최대 2km까지만 축소 가능
+  map.setMaxLevel(8); // level 8 = 2km 범위
+}
 
 console.log("✅ Kakao Map Initialized (Mobile Optimized, Max 2km range)");
 
