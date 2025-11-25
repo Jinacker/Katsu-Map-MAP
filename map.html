@@ -277,7 +277,7 @@ if (isLocationSearch) {
     };
 
     // 1. 중심 위치에 '📍' 이모지 핀 추가
-    const centerPinImage = createEmojiMarkerImage('😽', 30);
+    const centerPinImage = createEmojiMarkerImage('📍', 15);
     new kakao.maps.Marker({
         position: center,
         map: map,
@@ -285,6 +285,11 @@ if (isLocationSearch) {
         zIndex: 1001 // 다른 요소들보다 위에 보이도록 z-index 설정
     });
     console.log('✅ 검색 위치 중심에 📍 핀을 추가했습니다.');
+
+    const overlayDiv = document.createElement('div');
+    overlayDiv.className = 'blur-overlay';
+    document.getElementById('map').appendChild(overlayDiv);
+
 
     // 2. 2km 반경 원 외부를 어둡게 처리 (Polygon 방식)
     const getCirclePath = (radiusInMeters) => {
@@ -315,8 +320,8 @@ if (isLocationSearch) {
         map: map,
         path: [outerPath, innerPath],
         strokeWeight: 0,
-        fillColor: '#000000',
-        fillOpacity: 0.3
+        fillColor: 'transparent',
+        fillOpacity: 0
     });
 
     // 3. 2km 반경 주황색 테두리 원 추가
