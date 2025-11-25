@@ -209,7 +209,7 @@ if (isLocationSearch) {
     // 1. lat, lng 파라미터가 있는 경우 (검색 결과)
     initialLat = urlLat;
     initialLng = urlLng;
-    initialLevel = 6; // 요청에 따라 줌 레벨 4로 확대
+    initialLevel = 5; // 요청에 따라 줌 레벨 4로 확대
     console.log(`[위치 검색 모드] 좌표 (${initialLat.toFixed(4)}, ${initialLng.toFixed(4)}) 중심으로 지도를 표시합니다.`);
 } else if (isViewAll) {
     // 2. 즐겨찾기 지도 모드
@@ -277,7 +277,7 @@ if (isLocationSearch) {
     };
 
     // 1. 중심 위치에 '📍' 이모지 핀 추가
-    const centerPinImage = createEmojiMarkerImage('📍', 30);
+    const centerPinImage = createEmojiMarkerImage('📍', 40);
     new kakao.maps.Marker({
         position: center,
         map: map,
@@ -315,8 +315,8 @@ if (isLocationSearch) {
         map: map,
         path: [outerPath, innerPath],
         strokeWeight: 0,
-        fillColor: '#000000',
-        fillOpacity: 0.3
+        fillColor: 'transparent',
+        fillOpacity: 0
     });
 
     // 3. 2km 반경 주황색 테두리 원 추가
@@ -436,7 +436,7 @@ polygonScript.onload = function() {
       const polygon = new kakao.maps.Polygon({
         map: map,
         path: path,
-        strokeWeight: 4,           // 테두리 두께
+        strokeWeight: 9,           // 테두리 두께
         strokeColor: '#FB8C00',    // 테두리 색상 (진한 오렌지)
         strokeOpacity: 0.8,        // 테두리 투명도
         strokeStyle: 'solid',      // 테두리 스타일
