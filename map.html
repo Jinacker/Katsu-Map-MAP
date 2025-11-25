@@ -305,19 +305,17 @@ if (isLocationSearch) {
     };
     
     const outerPath = [
-        new kakao.maps.LatLng(90, -180), new kakao.maps.LatLng(90, 180),
-        new kakao.maps.LatLng(-90, 180), new kakao.maps.LatLng(-90, -180)
+      new kakao.maps.LatLng(90, -180), 
+      new kakao.maps.LatLng(90, 180),
+      new kakao.maps.LatLng(-90, 180), 
+      new kakao.maps.LatLng(-90, -180)
     ];
 
     const innerPath = getCirclePath(1000); // 1km
 
-    // 경로 방향(Winding Order) 설정: outer는 반시계, inner는 시계 방향이어야 구멍으로 인식됨
-    outerPath.reverse(); // -> 반시계 방향 (CCW)
-    innerPath.reverse(); // -> 시계 방향 (CW)
-
     new kakao.maps.Polygon({
         map: map,
-        path: [outerPath, innerPath],
+        path: [outerPath, innerPath], // 바깥 → 안쪽 순서
         strokeWeight: 0,
         fillColor: '#000000',
         fillOpacity: 0.3
