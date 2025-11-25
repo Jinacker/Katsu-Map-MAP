@@ -277,7 +277,7 @@ if (isLocationSearch) {
     };
 
     // 1. 중심 위치에 '📍' 이모지 핀 추가
-    const centerPinImage = createEmojiMarkerImage('📍', 40);
+    const centerPinImage = createEmojiMarkerImage('😽', 30);
     new kakao.maps.Marker({
         position: center,
         map: map,
@@ -315,8 +315,8 @@ if (isLocationSearch) {
         map: map,
         path: [outerPath, innerPath],
         strokeWeight: 0,
-        fillColor: 'transparent',
-        fillOpacity: 0
+        fillColor: '#000000',
+        fillOpacity: 0.3
     });
 
     // 3. 2km 반경 주황색 테두리 원 추가
