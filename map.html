@@ -27,17 +27,18 @@ position: relative; /* 오버레이를 위한 기준점 */
 /* 블러 효과를 위한 오버레이 스타일 */
 .blur-overlay {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 30vmin; /* 1km 반경에 해당하는 크기 */
-    height: 30vmin;
-    border-radius: 50%;
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3); /* 바깥 영역을 어둡게 */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.3); /* 어둡게 처리 */
     backdrop-filter: blur(4px); /* 블러 효과 */
     -webkit-backdrop-filter: blur(4px); /* Safari 지원 */
+    /* 중앙에 투명한 1km 반경의 원형 구멍 (화면 비율에 따라 크기 조절) */
+    mask: radial-gradient(circle, transparent 15vmin, black 15vmin);
+    -webkit-mask: radial-gradient(circle, transparent 15vmin, black 15vmin);
     pointer-events: none; /* 지도 인터랙션 허용 */
-    z-index: 1000;
+    z-index: 1000; /* 핀 위에 오도록 */
 }
 
 /* 1km 반경 테두리 원 스타일 */
@@ -46,17 +47,51 @@ position: relative; /* 오버레이를 위한 기준점 */
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 30vmin;
-    height: 30vmin;
+    width: 30vmin; /* 15vmin * 2 */
+    height: 30vmin; /* 15vmin * 2 */
     border-radius: 50%;
     border: 4px solid #FB8C00; /* 굵은 주황색 테두리 */
     pointer-events: none;
-    z-index: 1001;
+    z-index: 1001; /* 블러 오버레이 위에 오도록 */
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   POI 및 라벨 숨기기 전략 (기존 코드 유지)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+   옵션: CSS Transform Scale 확대 (더 강력한 확대 필요 시)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   아래 주석을 해제하면 지도 전체가 1.3배 확대됩니다.
+   - 장점: 도로, 글자, 아이콘 모두 선명하게 확대
+   - 단점: 지도 가장자리가 잘릴 수 있음
+
+   필요시 scale(1.3)을 scale(1.5) 등으로 조정 가능
+*/
+
+/*
+#map > div {
+transform: scale(1.3);
+transform-origin: center center;
+width: calc(100% / 1.3);
+height: calc(100% / 1.3);
+}
+*/
+
+/*
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  POI 및 라벨 숨기기 전략
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Kakao Maps API는 POI를 완전히 제거하는 공식 방법이 없습니다.
+  지도 타일 자체에 POI가 렌더링되어 있기 때문입니다.
+
+  하지만 CSS로 DOM에 추가되는 라벨 요소들을 숨길 수 있습니다:
+  - .label: POI 라벨 텍스트
+  - .info: 정보창
+  - .txt_*: 각종 텍스트 클래스
+
+  Kakao는 지도 위에 SVG/Canvas로 라벨을 그리거나,
+  absolute position의 div로 라벨을 추가합니다.
+  이를 모두 숨기기 위해 다양한 선택자를 사용합니다.
+*/
 
 /* 1단계: 기본 POI 라벨 클래스 숨기기 */
 #map .label,
@@ -68,7 +103,10 @@ display: none !important;
 visibility: hidden !important;
 }
 
-/* 2단계: 지도 위의 텍스트 요소 숨기기 (기존 코드 유지) */
+/* 2단계: 지도 위의 텍스트 요소 숨기기 (드래그 레이어는 보호) */
+/* Kakao 지도는 absolute position div 안에 span/div로 라벨을 추가합니다 */
+/* 주의: 너무 공격적으로 숨기면 드래그가 안될 수 있음 */
+
 /* 3단계: POI 아이콘과 심볼 숨기기 */
 #map .icon,
 #map .symbol {
@@ -88,7 +126,8 @@ visibility: visible !important;
 display: block !important;
 }
 </style>
-<!-- config.js에서 API 키 로드 -->
+<!-- config.js에서 API 키 로드 (로컬 개발용) -->
+<!-- React Native WebView에서는 injectedJavaScript로 주입 -->
 <script src="config.js"></script>
 </head>
 
@@ -96,37 +135,61 @@ display: block !important;
 <div id="map"></div>
 
 <script>
+// Kakao SDK 동적 로드 (환경변수 사용)
 (function() {
 const API_KEY = window.KAKAO_MAP_JS_KEY;
 
 if (!API_KEY) {
-console.error('❌ API 키가 설정되지 않았습니다.');
+console.error('❌ API 키가 설정되지 않았습니다. config.js 파일을 확인하세요.');
 document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#666;">API 키가 설정되지 않았습니다.</div>';
 return;
 }
 
+console.log('🔑 API Key loaded:', API_KEY.substring(0, 10) + '...');
+
 const script = document.createElement('script');
 script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${API_KEY}&autoload=false`;
 script.onload = function() {
+console.log('✅ Kakao SDK script loaded successfully');
 kakao.maps.load(() => {
+console.log('✅ kakao.maps.load() called');
 try {
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   지도 초기화
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+// URL 파라미터 파싱 함수
 const getQueryParam = (name) => new URLSearchParams(window.location.search).get(name);
 
+// 권역과 구 매핑 (서울 25개 구 전체)
 const REGION_MAPPING = {
-  '강북성신': ['성북구', '종로구'], '동대문': ['동대문구', '중랑구'], '성동': ['성동구','광진구'],
-  '홍대': ['마포구', '서대문구'], '마포': ['마포구', '은평구'], '용산이태원': ['용산구','중구'],
-  '광진': ['성동구','광진구'], '영등포여의도': ['영등포구', '양천구', '강서구', '구로구'],
-  '서초강남': ['서초구', '강남구', '동작구', '관악구'], '송파': ['송파구', '강동구']
+  '강북성신': ['성북구', '종로구'],
+  '동대문': ['동대문구', '중랑구'],
+  '성동': ['성동구','광진구'],
+  '홍대': ['마포구', '서대문구'],
+  '마포': ['마포구', '은평구'],
+  '용산이태원': ['용산구','중구'],
+  '광진': ['성동구','광진구'],
+  '영등포여의도': ['영등포구', '양천구', '강서구', '구로구'],
+  '서초강남': ['서초구', '강남구', '동작구', '관악구'],
+  '송파': ['송파구', '강동구']
 };
 
+// 권역별 중심 좌표 및 줌 레벨 (구 개수에 따라 레벨 조정: 많을수록 넓게)
 const REGION_CENTERS = {
-  '강북성신': { lat: 37.6150, lng: 127.0000, level: 8 }, '동대문': { lat: 37.5950, lng: 127.0650, level: 7 },
-  '성동': { lat: 37.5500, lng: 127.0600, level: 7 }, '홍대': { lat: 37.5700, lng: 126.9300, level: 7 },
-  '마포': { lat: 37.6000, lng: 126.9200, level: 7 }, '용산이태원': { lat: 37.5450, lng: 126.9900, level: 7 },
-  '광진': { lat: 37.5450, lng: 127.0800, level: 7 }, '영등포여의도': { lat: 37.5300, lng: 126.8600, level: 8 },
-  '서초강남': { lat: 37.4800, lng: 127.0100, level: 8 }, '송파': { lat: 37.5300, lng: 127.1400, level: 7 }
+  '강북성신': { lat: 37.6150, lng: 127.0000, level: 8 },  // 성북구+종로구+강북구 (3개구)
+  '동대문': { lat: 37.5950, lng: 127.0650, level: 7 },    // 동대문구+중랑구 (2개구)
+  '성동': { lat: 37.5500, lng: 127.0600, level: 7 },      // 성동구+광진구 (2개구)
+  '홍대': { lat: 37.5700, lng: 126.9300, level: 7 },      // 마포구+서대문구 (2개구)
+  '마포': { lat: 37.6000, lng: 126.9200, level: 7 },      // 마포구+은평구 (2개구)
+  '용산이태원': { lat: 37.5450, lng: 126.9900, level: 7 }, // 용산구+중구 (2개구)
+  '광진': { lat: 37.5450, lng: 127.0800, level: 7 },      // 성동구+광진구 (2개구)
+  '영등포여의도': { lat: 37.5300, lng: 126.8600, level: 8 }, // 영등포+양천+강서+구로 (4개구)
+  '서초강남': { lat: 37.4800, lng: 127.0100, level: 8 },  // 서초+강남+동작+관악 (4개구)
+  '송파': { lat: 37.5300, lng: 127.1400, level: 7 }       // 송파구+강동구 (2개구)
 };
 
+// URL 파라미터 파싱
 const urlLat = parseFloat(getQueryParam("lat"));
 const urlLng = parseFloat(getQueryParam("lng"));
 const isLocationSearch = !isNaN(urlLat) && !isNaN(urlLng);
@@ -134,138 +197,547 @@ const urlRegion = getQueryParam("region");
 const isViewAll = getQueryParam("viewAll") === 'true';
 
 let initialLat, initialLng, initialLevel;
-let mapOptions = { draggable: true, scrollwheel: true, disableDoubleClick: false, disableDoubleClickZoom: false };
+// isLocationSearch 모드를 포함하여 모든 모드에서 지도 컨트롤을 기본적으로 활성화합니다.
+let mapOptions = {
+    draggable: true,
+    scrollwheel: true,
+    disableDoubleClick: false,
+    disableDoubleClickZoom: false,
+};
 
 if (isLocationSearch) {
+    // 1. lat, lng 파라미터가 있는 경우 (검색 결과)
     initialLat = urlLat;
     initialLng = urlLng;
-    initialLevel = 6; // 1km 반경에 적절한 레벨 7
-    mapOptions = { draggable: false, scrollwheel: false, disableDoubleClick: true, disableDoubleClickZoom: true }; // 지도 고정
-    console.log(`[위치 검색 모드] 좌표 (${initialLat.toFixed(4)}, ${initialLng.toFixed(4)}) 중심으로 지도 고정`);
+    initialLevel = 6; // 요청에 따라 줌 레벨 4로 확대
+    console.log(`[위치 검색 모드] 좌표 (${initialLat.toFixed(4)}, ${initialLng.toFixed(4)}) 중심으로 지도를 표시합니다.`);
 } else if (isViewAll) {
-  initialLat = 37.5640; initialLng = 126.9900; initialLevel = 9;
+    // 2. 즐겨찾기 지도 모드
+    initialLat = 37.5640;
+    initialLng = 126.9900;
+    initialLevel = 9;
 } else if (urlRegion && REGION_CENTERS[urlRegion]) {
-  const regionCenter = REGION_CENTERS[urlRegion];
-  initialLat = regionCenter.lat; initialLng = regionCenter.lng; initialLevel = 8;
+    // 3. 권역 선택 모드
+    const regionCenter = REGION_CENTERS[urlRegion];
+    initialLat = regionCenter.lat;
+    initialLng = regionCenter.lng;
+    initialLevel = 8;
 } else {
-  initialLat = 37.5665; initialLng = 126.9780; initialLevel = 8;
+    // 4. 기본 모드 (서울 중심)
+    initialLat = 37.5665;
+    initialLng = 126.9780;
+    initialLevel = 8;
 }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   모바일 최적화: 지도 요소 확대
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   방법 1: CSS transform scale (권장)
+   - 장점: 간단하고 빠름, 모든 요소가 비례적으로 확대됨
+   - 단점: 좌표 계산 시 scale 보정 필요
+
+   방법 2: 낮은 level + 작은 컨테이너
+   - level을 낮춰서 지도를 확대하고, 컨테이너 크기로 조절
+   - Kakao의 기본 방식이라 안정적
+*/
+
+// 모바일 최적화를 위한 줌 레벨 조정
+// level 값이 낮을수록 더 확대됨 (1: 최대 확대, 14: 최대 축소)
 const map = new kakao.maps.Map(document.getElementById("map"), {
     center: new kakao.maps.LatLng(initialLat, initialLng),
     level: initialLevel,
     ...mapOptions
 });
 
+// 전역 객체로 저장
 window.map = map;
 window.markers = [];
 
+// isLocationSearch 모드일 경우, 중심 핀과 원형 오버레이 추가
 if (isLocationSearch) {
     const center = new kakao.maps.LatLng(initialLat, initialLng);
 
+    // 이모지를 사용하여 커스텀 마커 이미지를 생성하는 함수
     const createEmojiMarkerImage = (emoji, size) => {
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
         const context = canvas.getContext('2d');
-        context.font = `${size * 0.9}px sans-serif`;
+        context.font = `${size * 0.8}px sans-serif`;
         context.textAlign = 'center';
         context.textBaseline = 'middle';
+        // 이모지 위치 미세 조정
         context.fillText(emoji, size / 2, size / 2 + size * 0.05);
+
         const imageUrl = canvas.toDataURL('image/png');
-        return new kakao.maps.MarkerImage(imageUrl, new kakao.maps.Size(size, size), { offset: new kakao.maps.Point(size / 2, size / 2) });
+        const imageSize = new kakao.maps.Size(size, size);
+        const imageOptions = { offset: new kakao.maps.Point(size / 2, size / 2) };
+        return new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
     };
 
+    // 1. 중심 위치에 '📍' 이모지 핀 추가
+    const centerPinImage = createEmojiMarkerImage('📍', 30);
     new kakao.maps.Marker({
         position: center,
         map: map,
-        image: createEmojiMarkerImage('📍', 30),
-        zIndex: 1002
+        image: centerPinImage,
+        zIndex: 1001 // 다른 요소들보다 위에 보이도록 z-index 설정
     });
     console.log('✅ 검색 위치 중심에 📍 핀을 추가했습니다.');
 
-    const mapContainer = document.getElementById('map');
-    const blurOverlay = document.createElement('div');
-    blurOverlay.className = 'blur-overlay';
-    mapContainer.appendChild(blurOverlay);
-    
-    const circleBorder = document.createElement('div');
-    circleBorder.className = 'circle-border-overlay';
-    mapContainer.appendChild(circleBorder);
-    
-    console.log('✅ 지도 외곽에 블러 및 원형 테두리 오버레이를 적용했습니다.');
-}
-
-map.setMaxLevel(isViewAll ? 13 : 8);
-
-setTimeout(() => map.relayout(), 100);
-
-// --- 내 위치 표시 기능 (기존 코드 유지) ---
-if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            const myPosition = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
-                          <defs><filter id="dropshadow" height="1.5" width="1.5" x="-0.25" y="-0.25"><feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/><feOffset in="blur" dx="1" dy="2" result="offsetBlur"/><feFlood flood-color="#000" flood-opacity="0.4" result="offsetColor"/><feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetColor"/><feMerge><feMergeNode in="offsetColor"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                          <circle cx="16" cy="16" r="10" fill="#E74C3C" stroke="#FFFFFF" stroke-width="3" filter="url(#dropshadow)"/></svg>`;
-            const imageUrl = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
-            new kakao.maps.Marker({
-                position: myPosition,
-                map: window.map,
-                image: new kakao.maps.MarkerImage(imageUrl, new kakao.maps.Size(36, 36), { offset: new kakao.maps.Point(18, 18) }),
-                zIndex: 1000
-            });
-            console.log(`✅ 내 위치(${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})에 핀을 추가했습니다.`);
-        },
-        (error) => console.warn('⚠️ 내 위치를 가져오는 데 실패했습니다.', error),
-        { enableHighAccuracy: true }
-    );
-} else {
-    console.warn('⚠️ 이 브라우저에서는 Geolocation을 지원하지 않습니다.');
-}
-
-// --- 서울 구 경계선 표시 (isLocationSearch 아닐 때만) ---
-if (!isLocationSearch) {
-    const polygonScript = document.createElement('script');
-    polygonScript.src = 'seoul-polygons.js';
-    polygonScript.onload = function() {
-        if (typeof seoulDistricts !== 'undefined') {
-            const allowedDistricts = (!isViewAll && urlRegion && REGION_MAPPING[urlRegion]) ? REGION_MAPPING[urlRegion] : null;
-            seoulDistricts.forEach(district => {
-                if (allowedDistricts && !allowedDistricts.includes(district.name)) return;
-                const path = district.path.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
-                new kakao.maps.Polygon({
-                    map: map, path: path, strokeWeight: 4, strokeColor: '#FB8C00',
-                    strokeOpacity: 0.8, strokeStyle: 'solid', fillColor: 'transparent', fillOpacity: 0
-                });
-            });
+    // 2. 2km 반경 원 외부를 어둡게 처리 (Polygon 방식)
+    const getCirclePath = (radiusInMeters) => {
+        const centerLat = center.getLat();
+        const centerLng = center.getLng();
+        const numPoints = 64;
+        const path = [];
+        const latPerMeter = 1 / 111111;
+        const lngPerMeter = 1 / (111111 * Math.cos(centerLat * Math.PI / 180));
+        for (let i = 0; i < numPoints; i++) {
+            const angle = (i * 360) / numPoints;
+            const radian = angle * Math.PI / 180;
+            const lat = centerLat + (radiusInMeters * latPerMeter * Math.sin(radian));
+            const lng = centerLng + (radiusInMeters * lngPerMeter * Math.cos(radian));
+            path.push(new kakao.maps.LatLng(lat, lng));
         }
+        return path;
     };
-    document.head.appendChild(polygonScript);
+    
+    const outerPath = [
+        new kakao.maps.LatLng(90, -180), new kakao.maps.LatLng(90, 180),
+        new kakao.maps.LatLng(-90, 180), new kakao.maps.LatLng(-90, -180)
+    ];
+
+    const innerPath = getCirclePath(1000); // 1km
+
+    new kakao.maps.Polygon({
+        map: map,
+        path: [outerPath, innerPath],
+        strokeWeight: 0,
+        fillColor: '#000000',
+        fillOpacity: 0.3
+    });
+
+    // 3. 2km 반경 주황색 테두리 원 추가
+    new kakao.maps.Circle({
+        map: map,
+        center: center,
+        radius: 1000,
+        strokeWeight: 2,
+        strokeColor: '#FB8C00',
+        strokeOpacity: 0.8,
+        strokeStyle: 'solid',
+        fillOpacity: 0
+    });
+    console.log('✅ 2km 반경 외부에 어둡게 처리된 오버레이 및 주황색 원 테두리를 적용했습니다.');
 }
 
-// 이하 기존 코드 (POI 제거, React Native 연동 등)는 동일하게 유지
+
+// 줌 레벨 제한 설정
+if (isViewAll) {
+  // 즐겨찾기 지도는 서울 전역을 볼 수 있도록 레벨 13까지 허용
+  map.setMaxLevel(13);
+} else {
+  // 일반 지도는 최대 2km까지만 축소 가능
+  map.setMaxLevel(8); // level 8 = 2km 범위
+}
+
+console.log("✅ Kakao Map Initialized (Mobile Optimized, Max 2km range)");
+
+// 지도 초기화가 완료된 후 relayout 실행
+    setTimeout(() => {
+    map.relayout();
+    console.log("✅ Map relayout completed");
+    }, 100);
+
+    // --- 내 위치 표시 기능 추가 ---
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const myPosition = new kakao.maps.LatLng(lat, lng);
+
+                // 내 위치 마커 SVG (그림자 포함된 빨간색 원)
+                const svg = `
+                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+                    <defs>
+                      <filter id="dropshadow" height="1.5" width="1.5" x="-0.25" y="-0.25">
+                        <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+                        <feOffset in="blur" dx="1" dy="2" result="offsetBlur"/>
+                        <feFlood flood-color="#000" flood-opacity="0.4" result="offsetColor"/>
+                        <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
+                        <feMerge>
+                          <feMergeNode in="offsetBlur"/>
+                          <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    <circle cx="16" cy="16" r="10" fill="#E74C3C" stroke="#FFFFFF" stroke-width="3" filter="url(#dropshadow)"/>
+                  </svg>
+                `;
+                const imageUrl = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
+                const imageSize = new kakao.maps.Size(36, 36);
+                const imageOptions = { offset: new kakao.maps.Point(18, 18) };
+                const myLocationMarkerImage = new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
+
+                // 마커를 생성하고 지도에 표시합니다.
+                new kakao.maps.Marker({
+                    position: myPosition,
+                    map: window.map,
+                    image: myLocationMarkerImage,
+                    zIndex: 1000 // 다른 마커들보다 항상 위에 있도록 z-index를 높게 설정
+                });
+                console.log(`✅ 내 위치(${lat.toFixed(4)}, ${lng.toFixed(4)})에 핀을 추가했습니다.`);
+            },
+            (error) => {
+                console.warn('⚠️ 내 위치를 가져오는 데 실패했습니다.', error);
+            },
+            { enableHighAccuracy: true }
+        );
+    } else {
+        console.warn('⚠️ 이 브라우저에서는 Geolocation을 지원하지 않습니다.');
+    }
+    // --- 내 위치 표시 기능 끝 ---
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   서울 구 경계선 표시
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+// isLocationSearch 모드에서는 서울 구 경계선을 표시하지 않습니다.
+if (!isLocationSearch) {
+const polygonScript = document.createElement('script');
+polygonScript.src = 'seoul-polygons.js';
+polygonScript.onload = function() {
+  // seoulDistricts는 seoul-polygons.js에서 로드됨
+  if (typeof seoulDistricts !== 'undefined') {
+    // 권역 필터링: URL에 region 파라미터가 있으면 해당 권역의 구들만 표시
+    // isViewAll이면 모든 구 표시 (필터링 없음)
+    const allowedDistricts = (!isViewAll && urlRegion && REGION_MAPPING[urlRegion])
+      ? REGION_MAPPING[urlRegion]
+      : null; // null이면 모든 구 표시
+
+    let displayedCount = 0;
+    const regionPaths = []; // 권역에 포함된 구들의 경계 저장
+
+    seoulDistricts.forEach(district => {
+      // 권역 필터링 적용 (isViewAll일 때는 필터링 안함)
+      if (allowedDistricts && !allowedDistricts.includes(district.name)) {
+        return; // 이 구는 건너뛰ㅁ
+      }
+
+      // 좌표 배열을 kakao.maps.LatLng 객체로 변환
+      const path = district.path.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
+
+      // 권역 경로에 추가 (오버레이용)
+      regionPaths.push(path);
+
+      // 폴리곤 생성 (테두리만 표시)
+      const polygon = new kakao.maps.Polygon({
+        map: map,
+        path: path,
+        strokeWeight: 4,           // 테두리 두께
+        strokeColor: '#FB8C00',    // 테두리 색상 (진한 오렌지)
+        strokeOpacity: 0.8,        // 테두리 투명도
+        strokeStyle: 'solid',      // 테두리 스타일
+        fillColor: 'transparent',  // 채우기 색상 없음
+        fillOpacity: 0             // 채우기 투명도 0
+      });
+
+      displayedCount++;
+    });
+
+    // 외부 영역을 어둡게 처리
+    // - isViewAll: 서울 전체(25개 구) 외곽만 블러
+    // - 권역 모드: 해당 권역 외부만 블러
+    if ((isViewAll || urlRegion) && regionPaths.length > 0) {
+      // 서울과 경기도 전체를 덮는 큰 사각형 (외곽 경계 - 더 넓게 확장)
+      const outerBounds = [
+        new kakao.maps.LatLng(38.2000, 126.4000), // 북서
+        new kakao.maps.LatLng(38.2000, 127.7000), // 북동
+        new kakao.maps.LatLng(37.2000, 127.7000), // 남동
+        new kakao.maps.LatLng(37.2000, 126.4000), // 남서
+        new kakao.maps.LatLng(38.2000, 126.4000)  // 북서 (닫기)
+      ];
+
+      // 오버레이 폴리곤: 외곽 사각형에서 권역 구들을 뺀 영역
+      const overlayPath = [outerBounds, ...regionPaths];
+
+      const overlayPolygon = new kakao.maps.Polygon({
+        map: map,
+        path: overlayPath,
+        strokeWeight: 0,
+        strokeOpacity: 0,
+        fillColor: '#000000',      // 검은색 오버레이
+        fillOpacity: 0.3         // 30% 투명도 (더 은은하게)
+      });
+
+      if (isViewAll) {
+        console.log(`✅ 서울 외곽 블러 오버레이 적용 완료 (서울 전역 밝음)`);
+      } else {
+        console.log(`✅ 권역 외부 오버레이 적용 완료`);
+      }
+    }
+
+    if (isViewAll) {
+      console.log(`✅ [즐겨찾기 지도] 서울 전역 ${displayedCount}개 구 경계선 표시 완료 (블러 없음)`);
+    } else if (urlRegion) {
+      console.log(`✅ [${urlRegion}] ${displayedCount}개 구 경계선 표시 완료`);
+    } else {
+      console.log(`✅ 서울 ${displayedCount}개 구 경계선 표시 완료`);
+    }
+  } else {
+    console.warn('⚠️ seoulDistricts 변수를 찾을 수 없습니다.');
+  }
+};
+polygonScript.onerror = function() {
+  console.error('❌ seoul-polygons.js 로드 실패');
+};
+document.head.appendChild(polygonScript);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   POI 동적 제거 (MutationObserver 사용)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+   Kakao Maps는 지도 이동/줌 시 POI 라벨을 동적으로 DOM에 추가합니다.
+   CSS만으로는 미리 숨길 수 없는 요소들을 제거하기 위해
+   MutationObserver를 사용하여 DOM 변경을 감지하고 즉시 제거합니다.
+
+   지도 초기화가 완전히 끝난 후에 시작하여 드래그 기능 보호
+*/
+
 const mapElement = document.getElementById('map');
 
+// POI 제거 함수
 const removePOIElements = () => {
-    const labels = mapElement.querySelectorAll('.label, .info, .txt_name, .txt_caption, .txt_sub');
-    labels.forEach(el => {
-        if (el && el.parentNode) {
-            el.style.display = 'none';
-            el.style.visibility = 'hidden';
-        }
-    });
+// 라벨 클래스를 가진 모든 요소 제거
+const labels = mapElement.querySelectorAll('.label, .info, .txt_name, .txt_caption, .txt_sub');
+labels.forEach(el => {
+if (el && el.parentNode) {
+el.style.display = 'none';
+el.style.visibility = 'hidden';
+}
+});
+
+// absolute position div 내의 span 제거 (POI 텍스트)
+const textElements = mapElement.querySelectorAll('div[style*="position: absolute"] span');
+textElements.forEach(el => {
+// Kakao 로고나 저작권 정보가 아닌 경우만 제거
+if (!el.closest('.map_copyright') && !el.closest('.map_logo')) {
+el.style.display = 'none';
+}
+});
 };
 
+// MutationObserver 디바운싱 (드래그 성능 최적화)
 let poiRemovalTimeout;
 const debouncedRemovePOI = () => {
-    clearTimeout(poiRemovalTimeout);
-    poiRemovalTimeout = setTimeout(removePOIElements, 50);
+clearTimeout(poiRemovalTimeout);
+poiRemovalTimeout = setTimeout(() => {
+removePOIElements();
+}, 100); // 100ms 디바운스
 };
 
-const observer = new MutationObserver(debouncedRemovePOI);
-observer.observe(mapElement, { childList: true, subtree: true });
-kakao.maps.event.addListener(map, 'idle', removePOIElements);
+// MutationObserver 설정
+const observer = new MutationObserver((mutations) => {
+// DOM 변경 감지 시 디바운스된 POI 제거
+debouncedRemovePOI();
+});
+
+// 지도 초기화 완료 후 관찰 시작 (드래그 기능 보호)
+setTimeout(() => {
+observer.observe(mapElement, {
+childList: true,      // 자식 요소 추가/제거 감지
+subtree: true,        // 모든 하위 요소 감지
+attributes: false,    // 속성 변경은 무시 (성능 최적화)
+});
+
+// 초기 실행
+removePOIElements();
+console.log("✅ POI 제거 시작");
+}, 500); // 지도 초기화 후 500ms 대기
+
+// 지도 이벤트 발생 시에도 POI 제거 실행
+kakao.maps.event.addListener(map, 'idle', () => {
+// idle: 지도 이동/줌 완료 후 발생
+removePOIElements();
+});
+
+// 드래그 시작 시 POI 제거 일시 중지 (성능 최적화)
+let isDragging = false;
+kakao.maps.event.addListener(map, 'dragstart', () => {
+isDragging = true;
+});
+
+kakao.maps.event.addListener(map, 'dragend', () => {
+isDragging = false;
+removePOIElements();
+});
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   React Native WebView 통신 및 마커 업데이트
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+// --- 전역 상태 변수 ---
+let currentRestaurants = []; // 현재 표시된 맛집 목록
+let selectedRestaurantLatLng = null; // 사용자가 선택한 맛집의 좌표
+const markerPinImageCache = {}; // 핀 마커 이미지 캐시
+const markerShadowImageCache = {}; // 그림자 마커 이미지 캐시
+
+// --- 마커 속성 정의 ---
+const levelProperties = {
+  top5:   { color: '#B56EFF', zIndex: 4 },
+  best:   { color: '#5CC8FF', zIndex: 3 },
+  good:   { color: '#FF7A3D', zIndex: 2 },
+  normal: { color: '#FFD08A', zIndex: 1 },
+  default:{ color: '#888888', zIndex: 0 }
+};
+
+// --- 마커 SVG 및 이미지 생성 ---
+
+// 그림자 SVG 생성
+const getMarkerShadowSvg = () => {
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+      <g transform="translate(2, 2)">
+        <ellipse cx="14" cy="33" rx="8" ry="3" fill="#000" opacity="0.25"/>
+      </g>
+    </svg>
+  `;
+};
+
+// 핀 SVG 생성
+const getMarkerPinSvg = (color, isSelected = false, isFavorite = false) => {
+  let stroke = '';
+  if (isSelected) {
+    stroke = 'stroke="#E65100" stroke-width="3"'; // 선택된 핀은 빨간색 테두리
+  } else if (isFavorite) {
+    stroke = 'stroke="#FFFF00" stroke-width="3"'; // 즐겨찾기 핀은 노란색 테두리
+  }
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
+      <g transform="translate(2, 2)">
+        <path fill="${color}" d="M14 0C8.486 0 4 4.486 4 10c0 8.75 10 20 10 20s10-11.25 10-20C24 4.486 19.514 0 14 0Z" ${stroke}/>
+        <circle fill="#FFF" cx="14" cy="10" r="4" />
+      </g>
+    </svg>
+  `;
+};
+
+// 그림자 이미지 생성 및 캐싱
+const getMarkerShadowImage = () => {
+  if (markerShadowImageCache.image) {
+    return markerShadowImageCache.image;
+  }
+  const svg = getMarkerShadowSvg();
+  const imageUrl = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
+  const imageSize = new kakao.maps.Size(32, 40);
+  const imageOptions = { offset: new kakao.maps.Point(16, 38) };
+  const markerImage = new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
+  markerShadowImageCache.image = markerImage;
+  return markerImage;
+};
+
+// 핀 이미지 생성 및 캐싱
+const getMarkerPinImage = (level, isSelected = false, isFavorite = false) => {
+  const props = levelProperties[level] || levelProperties.default;
+  const color = props.color;
+  const cacheKey = `${color}-${isSelected}-${isFavorite}`; // isFavorite도 캐시 키에 포함
+
+  if (markerPinImageCache[cacheKey]) {
+    return markerPinImageCache[cacheKey];
+  }
+
+  const svg = getMarkerPinSvg(color, isSelected, isFavorite);
+  const imageUrl = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
+  const imageSize = new kakao.maps.Size(32, 40);
+  const imageOptions = { offset: new kakao.maps.Point(16, 38) };
+
+  const markerImage = new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
+  markerPinImageCache[cacheKey] = markerImage;
+  return markerImage;
+};
+
+// --- 마커 업데이트 ---
+
+// 마커를 다시 그리는 함수
+const updateMarkers = (restaurants) => {
+  if (!window.map) return;
+
+  window.markers.forEach(marker => marker.setMap(null));
+  window.markers = [];
+
+  // 그림자를 먼저 모두 그립니다 (레이어 최하단)
+  restaurants.forEach(restaurant => {
+    if (restaurant.lat == null || restaurant.lng == null) return;
+    
+    const shadowImage = getMarkerShadowImage();
+    const shadowMarker = new kakao.maps.Marker({
+      map: window.map,
+      position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
+      image: shadowImage,
+      zIndex: 0 // 그림자는 항상 zIndex 0
+    });
+    window.markers.push(shadowMarker);
+  });
+
+  // 그 다음 핀을 그립니다
+  restaurants.forEach(restaurant => {
+    if (restaurant.lat == null || restaurant.lng == null) return;
+
+    const isSelected = selectedRestaurantLatLng && restaurant.lat === selectedRestaurantLatLng.lat && restaurant.lng === selectedRestaurantLatLng.lng;
+    const isFavorite = restaurant.isFavorite || false; // isFavorite 속성 추가
+    const props = levelProperties[restaurant.recommendLevel] || levelProperties.default;
+    const markerImage = getMarkerPinImage(restaurant.recommendLevel, isSelected, isFavorite);
+
+    const marker = new kakao.maps.Marker({
+      map: window.map,
+      position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
+      image: markerImage,
+      // 그림자 zIndex가 0이므로, 핀은 1부터 시작, 선택 시 999
+      zIndex: isSelected ? 999 : (props.zIndex + 1)
+    });
+
+    // 마커 클릭 이벤트 추가
+    kakao.maps.event.addListener(marker, 'click', () => {
+        // 1. 핀 클릭 시 시점 이동 (레벨 5 이상일 때만)
+        const currentLevel = window.map.getLevel();
+        if (currentLevel >= 5) { // 레벨 5부터 시점 이동
+            selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
+            window.map.setLevel(4); // 요청: 확대 레벨 4로 변경
+            window.map.setCenter(new kakao.maps.LatLng(restaurant.lat, restaurant.lng));
+            updateMarkers(currentRestaurants); // 강조 및 중앙 정렬
+            console.log(`🗺️ 핀 클릭 시 시점 이동: ${restaurant.name}`);
+        } else {
+            // 레벨 4 이하는 시점 이동 없이 강조만
+            if (!selectedRestaurantLatLng || selectedRestaurantLatLng.lat !== restaurant.lat || selectedRestaurantLatLng.lng !== restaurant.lng) {
+                selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
+                updateMarkers(currentRestaurants);
+                console.log(`🗺️ 핀 클릭 시 강조: ${restaurant.name} (레벨 ${currentLevel}로 시점 이동 안함)`);
+            }
+        }
+
+        // 2. RN으로 메시지 전송 (기존 로직)
+        if (window.ReactNativeWebView) {
+            const message = {
+                type: 'SHOW_DIRECTIONS',
+                payload: restaurant
+            };
+            window.ReactNativeWebView.postMessage(JSON.stringify(message));
+            console.log('🗺️ 길찾기 요청:', restaurant.name);
+        } else {
+            console.error('클릭 오류: window.ReactNativeWebView 객체를 찾을 수 없습니다. RN WebView 설정이 올바른지 확인해주세요.');
+        }
+    });
+
+    window.markers.push(marker);
+  });
+
+  console.log(`✅ ${restaurants.length * 2}개의 마커(핀+그림자)를 지도에 표시했습니다. (선택된 핀: ${selectedRestaurantLatLng ? '있음' : '없음'})`);
+};
+
+// --- WebView 메시지 핸들러 ---
 
 const handleMessage = (event) => {
   try {
@@ -276,20 +748,23 @@ const handleMessage = (event) => {
 
     if (message.type === 'UPDATE_RESTAURANTS' && Array.isArray(message.payload)) {
       console.log(`📦 [WebView] ${message.payload.length}개의 레스토랑 데이터 수신`);
-      window.currentRestaurants = message.payload;
-      window.selectedRestaurantLatLng = null;
+      currentRestaurants = message.payload;
+      selectedRestaurantLatLng = null;
+      updateMarkers(currentRestaurants);
     }
     else if (message.type === 'PAN_TO' && message.payload) {
       console.log(`🗺️ [WebView] 시점 이동 요청:`, message.payload);
       const { lat, lng, level } = message.payload;
 
       if (lat != null && lng != null && window.map) {
-        window.selectedRestaurantLatLng = { lat, lng };
+        selectedRestaurantLatLng = { lat, lng };
 
         window.map.setCenter(new kakao.maps.LatLng(lat, lng));
         if (level != null) {
           window.map.setLevel(level);
         }
+        updateMarkers(currentRestaurants);
+        
         console.log(`✅ [WebView] 시점 이동 및 핀 강조 완료!`);
       }
     }
@@ -298,6 +773,7 @@ const handleMessage = (event) => {
   }
 };
 
+// --- 이벤트 리스너 등록 ---
 if (window.messageListener) {
     document.removeEventListener('message', window.messageListener);
     window.removeEventListener('message', window.messageListener);
@@ -313,7 +789,13 @@ console.error("❌ 지도 초기화 중 오류 발생:", err);
 }
 });
 };
-script.onerror = () => console.error('❌ Kakao SDK 로드 실패');
+
+script.onerror = function(e) {
+console.error('❌ Kakao SDK 로드 실패');
+console.error('Error details:', e);
+console.error('Script src:', script.src);
+};
+
 document.head.appendChild(script);
 })();
 </script>
