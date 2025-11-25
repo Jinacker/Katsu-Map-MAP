@@ -305,18 +305,18 @@ if (isLocationSearch) {
         return path;
     };
 
-    // 🌍 전역 사각형(바깥 영역) — CCW(반시계) 방향
+    // 🌍 전역 사각형(바깥 영역) — CCW로 변경
     let outerPath = [
         new kakao.maps.LatLng(90, -180),
-        new kakao.maps.LatLng(90, 180),
+        new kakao.maps.LatLng(-90, -180),
         new kakao.maps.LatLng(-90, 180),
-        new kakao.maps.LatLng(-90, -180)
+        new kakao.maps.LatLng(90, 180)
     ];
-    // reverse 제거: Kakao Maps는 CW를 채움, CCW를 구멍으로 인식
+    // ★ 북서→남서→남동→북동 = CCW(반시계방향)
 
     // 🟠 내부 원 — CW(시계)로 구멍 생성
     let innerPath = getCirclePath(1000);
-    // reverse 제거: getCirclePath는 CCW를 생성하므로 그대로 사용
+    innerPath.reverse(); // ★ CCW→CW 변환으로 구멍 만들기
 
     // 🔥 최종 구멍 뚫린 오버레이
     new kakao.maps.Polygon({
