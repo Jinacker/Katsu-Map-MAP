@@ -93,6 +93,32 @@ visibility: visible !important;
 #map .controller {
 display: block !important;
 }
+
+.blur-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    mask: radial-gradient(circle, transparent 30vmin, black 30vmin);
+    -webkit-mask: radial-gradient(circle, transparent 30vmin, black 30vmin);
+    pointer-events: none;
+}
+
+.center-circle-border {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60vmin;
+    height: 60vmin;
+    border-radius: 50%;
+    border: 2px solid #FB8C00;
+    pointer-events: none;
+}
 </style>
 <!-- config.js에서 API 키 로드 (로컬 개발용) -->
 <!-- React Native WebView에서는 injectedJavaScript로 주입 -->
@@ -177,7 +203,7 @@ if (isLocationSearch) {
     // 1. lat, lng 파라미터가 있는 경우 (검색 결과)
     initialLat = urlLat;
     initialLng = urlLng;
-    initialLevel = 4; // 요청에 따라 줌 레벨 4로 확대
+    initialLevel = 6; // 요청에 따라 줌 레벨 4로 확대
     console.log(`[위치 검색 모드] 좌표 (${initialLat.toFixed(4)}, ${initialLng.toFixed(4)}) 중심으로 지도를 표시합니다.`);
 } else if (isViewAll) {
     // 2. 즐겨찾기 지도 모드
@@ -245,7 +271,7 @@ if (isLocationSearch) {
     };
 
     // 1. 중심 위치에 '📍' 이모지 핀 추가
-    const centerPinImage = createEmojiMarkerImage('📍', 48);
+    const centerPinImage = createEmojiMarkerImage('📍', 30);
     new kakao.maps.Marker({
         position: center,
         map: map,
@@ -254,65 +280,17 @@ if (isLocationSearch) {
     });
     console.log('✅ 검색 위치 중심에 📍 핀을 추가했습니다.');
 
-    // 2. 2km 반경 원과 외부 어두운 오버레이 추가
-    //    Polygon을 사용하여 '구멍' 효과 구현
-
-    // 2km 반경의 원 경로를 계산하는 함수 (좌표 근사치 사용)
-    const getCirclePath = (radiusInMeters) => {
-        const centerLat = center.getLat();
-        const centerLng = center.getLng();
-        const numPoints = 64; // 원을 표현할 점의 개수
-        const path = [];
-        
-        // 위도/경도 근사치 변환
-        const latPerMeter = 1 / 111111;
-        const lngPerMeter = 1 / (111111 * Math.cos(centerLat * Math.PI / 180));
-        
-        for (let i = 0; i < numPoints; i++) {
-            const angle = (i * 360) / numPoints; // 0 ~ 360도
-            const radian = angle * Math.PI / 180;
-            
-            const lat = centerLat + (radiusInMeters * latPerMeter * Math.sin(radian));
-            const lng = centerLng + (radiusInMeters * lngPerMeter * Math.cos(radian));
-            
-            path.push(new kakao.maps.LatLng(lat, lng));
-        }
-        return path;
-    };
+    // 2. CSS로 블러 및 원형 오버레이 추가
+    const mapContainer = document.getElementById('map');
+    const blurOverlay = document.createElement('div');
+    blurOverlay.className = 'blur-overlay';
+    mapContainer.appendChild(blurOverlay);
     
-    // 전 세계를 덮는 매우 큰 사각형 (바깥 영역)
-    const outerPath = [
-        new kakao.maps.LatLng(90, -180),
-        new kakao.maps.LatLng(90, 180),
-        new kakao.maps.LatLng(-90, 180),
-        new kakao.maps.LatLng(-90, -180)
-    ];
-
-    // 2km 반경의 원 (안쪽 영역, '구멍'이 될 부분)
-    const innerPath = getCirclePath(2000); // 2km 반경
-
-    // 바깥 영역에서 안쪽 원을 뺀 Polygon 생성
-    new kakao.maps.Polygon({
-        map: map,
-        path: [outerPath, innerPath],
-        strokeWeight: 0,
-        fillColor: '#000000',
-        fillOpacity: 0.3
-    });
-
-    // 2km 반경을 나타내는 흰색 원 테두리 추가
-    new kakao.maps.Circle({
-        map: map,
-        center: center,
-        radius: 2000, // 미터(m) 단위
-        strokeWeight: 2,
-        strokeColor: '#FB8C00', // 테두리 색상을 주황색으로 변경
-        strokeOpacity: 0.8,
-        strokeStyle: 'solid',
-        fillOpacity: 0 // 내부는 채우지 않음
-    });
-
-    console.log('✅ 2km 반경 외부에 어두운 오버레이 및 원 테두리를 적용했습니다.');
+    const circleBorder = document.createElement('div');
+    circleBorder.className = 'center-circle-border';
+    mapContainer.appendChild(circleBorder);
+    
+    console.log('✅ 지도 외곽에 블러 및 원형 테두리 오버레이를 적용했습니다.');
 }
 
 // 줌 레벨 제한 설정
