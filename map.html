@@ -157,30 +157,50 @@ const REGION_CENTERS = {
   '송파': { lat: 37.5300, lng: 127.1400, level: 7 }       // 송파구+강동구 (2개구)
 };
 
-// URL 파라미터로 권역 설정 (예: ?region=강남)
-const urlRegion = getQueryParam("region");
+// URL 파라미터 파싱
 const urlLat = parseFloat(getQueryParam("lat"));
 const urlLng = parseFloat(getQueryParam("lng"));
-const isViewAll = getQueryParam("viewAll") === 'true'; // 즐겨찾기 지도 모드
+const isLocationSearch = !isNaN(urlLat) && !isNaN(urlLng);
+const urlRegion = getQueryParam("region");
+const isViewAll = getQueryParam("viewAll") === 'true';
 
 let initialLat, initialLng, initialLevel;
+let mapOptions = {
+    draggable: true,
+    scrollwheel: true,
+    disableDoubleClick: false,
+    disableDoubleClickZoom: false,
+};
 
-if (isViewAll) {
-  // 즐겨찾기 지도 모드: 서울 전체 보기
-  initialLat = 37.5640; // 서울 정중앙 (시청 기준보다 약간 북쪽)
-  initialLng = 126.9900;
-  initialLevel = 9; // 서울 전역이 다 보이도록 더 넓은 범위
+if (isLocationSearch) {
+    // 1. lat, lng 파라미터가 있는 경우 (검색 결과)
+    initialLat = urlLat;
+    initialLng = urlLng;
+    initialLevel = 8; // 2km 반경에 적합한 레벨 8로 확대
+    // 지도 시점 고정
+    mapOptions = {
+        draggable: false,
+        scrollwheel: false,
+        disableDoubleClick: true,
+        disableDoubleClickZoom: true,
+    };
+    console.log(`[위치 검색 모드] 좌표 (${initialLat.toFixed(4)}, ${initialLng.toFixed(4)}) 중심으로 지도를 고정합니다.`);
+} else if (isViewAll) {
+    // 2. 즐겨찾기 지도 모드
+    initialLat = 37.5640;
+    initialLng = 126.9900;
+    initialLevel = 9;
 } else if (urlRegion && REGION_CENTERS[urlRegion]) {
-  // 권역이 지정된 경우 해당 권역 중심으로 이동
-  const regionCenter = REGION_CENTERS[urlRegion];
-  initialLat = regionCenter.lat;
-  initialLng = regionCenter.lng;
-  initialLevel = 8; // 권역 시점이동 시 무조건 2km (level 8)
+    // 3. 권역 선택 모드
+    const regionCenter = REGION_CENTERS[urlRegion];
+    initialLat = regionCenter.lat;
+    initialLng = regionCenter.lng;
+    initialLevel = 8;
 } else {
-  // 권역이 없으면 기본 서울 중심 또는 URL 좌표 사용
-  initialLat = isNaN(urlLat) ? 37.5665 : urlLat;
-  initialLng = isNaN(urlLng) ? 126.9780 : urlLng;
-  initialLevel = 2; // 기본 줌 레벨
+    // 4. 기본 모드 (서울 중심)
+    initialLat = 37.5665;
+    initialLng = 126.9780;
+    initialLevel = 8;
 }
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -199,17 +219,87 @@ if (isViewAll) {
 // 모바일 최적화를 위한 줌 레벨 조정
 // level 값이 낮을수록 더 확대됨 (1: 최대 확대, 14: 최대 축소)
 const map = new kakao.maps.Map(document.getElementById("map"), {
-center: new kakao.maps.LatLng(initialLat, initialLng),
-level: initialLevel, // URL 파라미터 또는 기본 레벨 사용
-draggable: true, // 드래그 이동 활성화
-scrollwheel: true, // 마우스 휠 줌 활성화
-disableDoubleClick: false, // 더블클릭 줌 활성화
-disableDoubleClickZoom: false, // 더블클릭 줌 활성화
+    center: new kakao.maps.LatLng(initialLat, initialLng),
+    level: initialLevel,
+    ...mapOptions
 });
 
 // 전역 객체로 저장
 window.map = map;
 window.markers = [];
+
+// isLocationSearch 모드일 경우, 중심 핀과 원형 오버레이 추가
+if (isLocationSearch) {
+    const center = new kakao.maps.LatLng(initialLat, initialLng);
+
+    // 1. 중심 위치에 핀 추가 (기본 제공 파란색 핀)
+    new kakao.maps.Marker({
+        position: center,
+        map: map,
+        zIndex: 1001 // 다른 요소들보다 위에 보이도록 z-index 설정
+    });
+    console.log('✅ 검색 위치 중심에 핀을 추가했습니다.');
+
+    // 2. 2km 반경 원과 외부 어두운 오버레이 추가
+    //    Polygon을 사용하여 '구멍' 효과 구현
+
+    // 2km 반경의 원 경로를 계산하는 함수 (좌표 근사치 사용)
+    const getCirclePath = (radiusInMeters) => {
+        const centerLat = center.getLat();
+        const centerLng = center.getLng();
+        const numPoints = 64; // 원을 표현할 점의 개수
+        const path = [];
+        
+        // 위도/경도 근사치 변환
+        const latPerMeter = 1 / 111111;
+        const lngPerMeter = 1 / (111111 * Math.cos(centerLat * Math.PI / 180));
+        
+        for (let i = 0; i < numPoints; i++) {
+            const angle = (i * 360) / numPoints; // 0 ~ 360도
+            const radian = angle * Math.PI / 180;
+            
+            const lat = centerLat + (radiusInMeters * latPerMeter * Math.sin(radian));
+            const lng = centerLng + (radiusInMeters * lngPerMeter * Math.cos(radian));
+            
+            path.push(new kakao.maps.LatLng(lat, lng));
+        }
+        return path;
+    };
+    
+    // 전 세계를 덮는 매우 큰 사각형 (바깥 영역)
+    const outerPath = [
+        new kakao.maps.LatLng(90, -180),
+        new kakao.maps.LatLng(90, 180),
+        new kakao.maps.LatLng(-90, 180),
+        new kakao.maps.LatLng(-90, -180)
+    ];
+
+    // 2km 반경의 원 (안쪽 영역, '구멍'이 될 부분)
+    const innerPath = getCirclePath(2000); // 2km 반경
+
+    // 바깥 영역에서 안쪽 원을 뺀 Polygon 생성
+    new kakao.maps.Polygon({
+        map: map,
+        path: [outerPath, innerPath],
+        strokeWeight: 0,
+        fillColor: '#000000',
+        fillOpacity: 0.3
+    });
+
+    // 2km 반경을 나타내는 흰색 원 테두리 추가
+    new kakao.maps.Circle({
+        map: map,
+        center: center,
+        radius: 2000, // 미터(m) 단위
+        strokeWeight: 2,
+        strokeColor: '#FFFFFF',
+        strokeOpacity: 0.8,
+        strokeStyle: 'solid',
+        fillOpacity: 0 // 내부는 채우지 않음
+    });
+
+    console.log('✅ 2km 반경 외부에 어두운 오버레이 및 원 테두리를 적용했습니다.');
+}
 
 // 줌 레벨 제한 설정
 if (isViewAll) {
