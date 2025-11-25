@@ -286,7 +286,7 @@ if (isLocationSearch) {
     });
     console.log('✅ 검색 위치 중심에 📍 핀을 추가했습니다.');
 
-    // 2. 2km 반경 원 외부를 어둡게 처리 (Polygon 방식)
+    // 2. 1km 반경 원 외부를 어둡게 처리 (Polygon 방식)
     const getCirclePath = (radiusInMeters) => {
         const centerLat = center.getLat();
         const centerLng = center.getLng();
@@ -304,15 +304,22 @@ if (isLocationSearch) {
         return path;
     };
     
-    const outerPath = [
+    // 🔥 전 세계 사각형(outerPath) → CCW로 넣어야 함 (반시계)
+    let outerPath = [
       new kakao.maps.LatLng(90, -180), 
       new kakao.maps.LatLng(90, 180),
       new kakao.maps.LatLng(-90, 180), 
       new kakao.maps.LatLng(-90, -180)
     ];
 
-    const innerPath = getCirclePath(1000); // 1km
+    // 👇 CCW 보장 (중요!)
+    outerPath.reverse();
 
+    // 🔥 1km 원(innerPath) → CW로 뒤집어야 구멍으로 동작함
+    let innerPath = getCirclePath(1000);
+    innerPath.reverse();
+
+    // 🔥 최종 오버레이 폴리곤
     new kakao.maps.Polygon({
         map: map,
         path: [outerPath, innerPath], // 바깥 → 안쪽 순서
@@ -321,19 +328,20 @@ if (isLocationSearch) {
         fillOpacity: 0.3
     });
 
-    // 3. 2km 반경 주황색 테두리 원 추가
+    // 3. 1km 반경 주황색 테두리 원 추가
     new kakao.maps.Circle({
         map: map,
         center: center,
         radius: 1000,
-        strokeWeight: 2,
+        strokeWeight: 6,
         strokeColor: '#FB8C00',
         strokeOpacity: 0.8,
         strokeStyle: 'solid',
         fillOpacity: 0
     });
-    console.log('✅ 2km 반경 외부에 어둡게 처리된 오버레이 및 주황색 원 테두리를 적용했습니다.');
+    console.log('✅ 1km 반경 외부 어둡게 처리 + 테두리 적용 완료');
 }
+
 
 
 // 줌 레벨 제한 설정
