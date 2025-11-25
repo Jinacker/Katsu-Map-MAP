@@ -165,6 +165,7 @@ const urlRegion = getQueryParam("region");
 const isViewAll = getQueryParam("viewAll") === 'true';
 
 let initialLat, initialLng, initialLevel;
+// isLocationSearch 모드를 포함하여 모든 모드에서 지도 컨트롤을 기본적으로 활성화합니다.
 let mapOptions = {
     draggable: true,
     scrollwheel: true,
@@ -176,15 +177,8 @@ if (isLocationSearch) {
     // 1. lat, lng 파라미터가 있는 경우 (검색 결과)
     initialLat = urlLat;
     initialLng = urlLng;
-    initialLevel = 8; // 2km 반경에 적합한 레벨 8로 확대
-    // 지도 시점 고정
-    mapOptions = {
-        draggable: false,
-        scrollwheel: false,
-        disableDoubleClick: true,
-        disableDoubleClickZoom: true,
-    };
-    console.log(`[위치 검색 모드] 좌표 (${initialLat.toFixed(4)}, ${initialLng.toFixed(4)}) 중심으로 지도를 고정합니다.`);
+    initialLevel = 4; // 요청에 따라 줌 레벨 4로 확대
+    console.log(`[위치 검색 모드] 좌표 (${initialLat.toFixed(4)}, ${initialLng.toFixed(4)}) 중심으로 지도를 표시합니다.`);
 } else if (isViewAll) {
     // 2. 즐겨찾기 지도 모드
     initialLat = 37.5640;
@@ -232,13 +226,33 @@ window.markers = [];
 if (isLocationSearch) {
     const center = new kakao.maps.LatLng(initialLat, initialLng);
 
-    // 1. 중심 위치에 핀 추가 (기본 제공 파란색 핀)
+    // 이모지를 사용하여 커스텀 마커 이미지를 생성하는 함수
+    const createEmojiMarkerImage = (emoji, size) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext('2d');
+        context.font = `${size * 0.8}px sans-serif`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        // 이모지 위치 미세 조정
+        context.fillText(emoji, size / 2, size / 2 + size * 0.05);
+
+        const imageUrl = canvas.toDataURL('image/png');
+        const imageSize = new kakao.maps.Size(size, size);
+        const imageOptions = { offset: new kakao.maps.Point(size / 2, size / 2) };
+        return new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
+    };
+
+    // 1. 중심 위치에 '📍' 이모지 핀 추가
+    const centerPinImage = createEmojiMarkerImage('📍', 48);
     new kakao.maps.Marker({
         position: center,
         map: map,
+        image: centerPinImage,
         zIndex: 1001 // 다른 요소들보다 위에 보이도록 z-index 설정
     });
-    console.log('✅ 검색 위치 중심에 핀을 추가했습니다.');
+    console.log('✅ 검색 위치 중심에 📍 핀을 추가했습니다.');
 
     // 2. 2km 반경 원과 외부 어두운 오버레이 추가
     //    Polygon을 사용하여 '구멍' 효과 구현
@@ -292,7 +306,7 @@ if (isLocationSearch) {
         center: center,
         radius: 2000, // 미터(m) 단위
         strokeWeight: 2,
-        strokeColor: '#FFFFFF',
+        strokeColor: '#FB8C00', // 테두리 색상을 주황색으로 변경
         strokeOpacity: 0.8,
         strokeStyle: 'solid',
         fillOpacity: 0 // 내부는 채우지 않음
@@ -371,7 +385,8 @@ console.log("✅ Kakao Map Initialized (Mobile Optimized, Max 2km range)");
    서울 구 경계선 표시
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-// seoul-polygons.js를 동적으로 로드 (Kakao SDK 로드 후)
+// isLocationSearch 모드에서는 서울 구 경계선을 표시하지 않습니다.
+if (!isLocationSearch) {
 const polygonScript = document.createElement('script');
 polygonScript.src = 'seoul-polygons.js';
 polygonScript.onload = function() {
@@ -389,7 +404,7 @@ polygonScript.onload = function() {
     seoulDistricts.forEach(district => {
       // 권역 필터링 적용 (isViewAll일 때는 필터링 안함)
       if (allowedDistricts && !allowedDistricts.includes(district.name)) {
-        return; // 이 구는 건너뜀
+        return; // 이 구는 건너뛰ㅁ
       }
 
       // 좌표 배열을 kakao.maps.LatLng 객체로 변환
@@ -460,6 +475,7 @@ polygonScript.onerror = function() {
   console.error('❌ seoul-polygons.js 로드 실패');
 };
 document.head.appendChild(polygonScript);
+}
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    POI 동적 제거 (MutationObserver 사용)
