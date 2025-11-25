@@ -305,18 +305,22 @@ if (isLocationSearch) {
         return path;
     };
 
-    // 🌍 전역 사각형(바깥 영역) — CCW로 변경
+    // 🌍 서울 전체를 덮는 큰 사각형 (바깥 영역)
     let outerPath = [
-        new kakao.maps.LatLng(90, -180),
-        new kakao.maps.LatLng(-90, -180),
-        new kakao.maps.LatLng(-90, 180),
-        new kakao.maps.LatLng(90, 180)
+        new kakao.maps.LatLng(37.8, 126.6),  // 북서
+        new kakao.maps.LatLng(37.2, 126.6),  // 남서
+        new kakao.maps.LatLng(37.2, 127.4),  // 남동
+        new kakao.maps.LatLng(37.8, 127.4)   // 북동
     ];
     // ★ 북서→남서→남동→북동 = CCW(반시계방향)
 
     // 🟠 내부 원 — CW(시계)로 구멍 생성
     let innerPath = getCirclePath(1000);
     innerPath.reverse(); // ★ CCW→CW 변환으로 구멍 만들기
+
+    console.log('🔍 DEBUG - outerPath 첫 점:', outerPath[0]);
+    console.log('🔍 DEBUG - innerPath 길이:', innerPath.length);
+    console.log('🔍 DEBUG - innerPath 첫 점:', innerPath[0]);
 
     // 🔥 최종 구멍 뚫린 오버레이
     new kakao.maps.Polygon({
@@ -326,6 +330,8 @@ if (isLocationSearch) {
         fillColor: '#000',
         fillOpacity: 0.32
     });
+
+    console.log('✅ Polygon 생성 완료 - path 배열 길이:', [outerPath, innerPath].length);
 
     // 🟠 1km 테두리 원
     new kakao.maps.Circle({
