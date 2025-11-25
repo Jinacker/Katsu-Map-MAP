@@ -277,7 +277,7 @@ if (isLocationSearch) {
     };
 
     // 1. 중심 위치에 '📍' 이모지 핀 추가
-    const centerPinImage = createEmojiMarkerImage('📍', 30);
+    const centerPinImage = createEmojiMarkerImage('📍', 40);
     new kakao.maps.Marker({
         position: center,
         map: map,
@@ -310,6 +310,10 @@ if (isLocationSearch) {
     ];
 
     const innerPath = getCirclePath(1000); // 1km
+
+    // 경로 방향(Winding Order) 설정: outer는 반시계, inner는 시계 방향이어야 구멍으로 인식됨
+    outerPath.reverse(); // -> 반시계 방향 (CCW)
+    innerPath.reverse(); // -> 시계 방향 (CW)
 
     new kakao.maps.Polygon({
         map: map,
