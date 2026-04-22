@@ -91,12 +91,17 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 window.map = map;
 window.markers = [];
 window.overlays = [];
+let preserveSelectionOnNextViewChange = false;
 
 map.setMaxLevel(13);
 
 kakao.maps.event.addListener(map, 'zoom_changed', () => {
   const show = map.getLevel() < 7;
   window.overlays.forEach(o => o.setMap(show ? map : null));
+});
+
+kakao.maps.event.addListener(map, 'idle', () => {
+  preserveSelectionOnNextViewChange = false;
 });
 
 
@@ -257,19 +262,25 @@ const levelProperties = {
 };
 
 const markerPinImageCache = {};
+const SELECTED_PIN_STROKE = '#FF1744';
+const DEFAULT_PIN_STROKE = '#F5F0E8';
+const SELECTED_PIN_STROKE_WIDTH = 14;
+const DEFAULT_PIN_STROKE_WIDTH = 6;
 
 const OUTER_PIN = 'M128,16a88.1,88.1,0,0,0-88,88c0,75.3,80,132.17,83.41,134.55a8,8,0,0,0,9.18,0C136,236.17,216,179.3,216,104A88.1,88.1,0,0,0,128,16Z';
 const INNER_HOLE = 'Zm0,56a32,32,0,1,1-32,32A32,32,0,0,1,128,72Z';
 
-const getMarkerPinImage = (level, isHunterPick = false) => {
-  const cacheKey = `${level}-${isHunterPick}`;
+const getMarkerPinImage = (level, isHunterPick = false, isSelected = false) => {
+  const cacheKey = `${level}-${isHunterPick}-${isSelected}`;
   if (markerPinImageCache[cacheKey]) return markerPinImageCache[cacheKey];
   const { color } = levelProperties[level] || levelProperties.default;
+  const stroke = isSelected ? SELECTED_PIN_STROKE : DEFAULT_PIN_STROKE;
+  const strokeWidth = isSelected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
   let svg;
   if (isHunterPick) {
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="#F5F0E8" stroke-width="6" d="${OUTER_PIN}"/><circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🕵🏻‍♂️</text></svg>`;
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/><circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🕵🏻‍♂️</text></svg>`;
   } else {
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="#F5F0E8" stroke-width="6" d="${OUTER_PIN}${INNER_HOLE}"/></svg>`;
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}${INNER_HOLE}"/></svg>`;
   }
 
   const url = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
@@ -283,6 +294,24 @@ const getMarkerPinImage = (level, isHunterPick = false) => {
 // --- 마커 업데이트 ---
 let currentRestaurants = [];
 let selectedRestaurantLatLng = null;
+
+const clearSelectedRestaurant = () => {
+  if (!selectedRestaurantLatLng) return;
+  selectedRestaurantLatLng = null;
+  updateMarkers(currentRestaurants);
+};
+
+kakao.maps.event.addListener(map, 'click', () => {
+  clearSelectedRestaurant();
+});
+
+kakao.maps.event.addListener(map, 'dragstart', () => {
+  if (!preserveSelectionOnNextViewChange) clearSelectedRestaurant();
+});
+
+kakao.maps.event.addListener(map, 'zoom_start', () => {
+  if (!preserveSelectionOnNextViewChange) clearSelectedRestaurant();
+});
 
 const updateMarkers = (restaurants) => {
   if (!window.map || !window.clusterer) return;
@@ -300,7 +329,11 @@ const updateMarkers = (restaurants) => {
 
     const marker = new kakao.maps.Marker({
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
-      image: getMarkerPinImage(restaurant.recommendLevel, Boolean(restaurant.isKatsuHunterPick || restaurant.is_katsu_hunter_pick)),
+      image: getMarkerPinImage(
+        restaurant.recommendLevel,
+        Boolean(restaurant.isKatsuHunterPick || restaurant.is_katsu_hunter_pick),
+        Boolean(isSelected),
+      ),
       zIndex: isSelected ? 999 : (props.zIndex + 1),
     });
 
@@ -308,6 +341,7 @@ const updateMarkers = (restaurants) => {
       const currentLevel = window.map.getLevel();
       if (currentLevel >= 5) {
         selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
+        preserveSelectionOnNextViewChange = true;
         window.map.setLevel(4);
         window.map.setCenter(new kakao.maps.LatLng(restaurant.lat, restaurant.lng));
         updateMarkers(currentRestaurants);
@@ -365,6 +399,7 @@ const handleMessage = (event) => {
       const { lat, lng, level } = message.payload;
       if (lat != null && lng != null && window.map) {
         selectedRestaurantLatLng = { lat, lng };
+        preserveSelectionOnNextViewChange = true;
         window.map.setCenter(new kakao.maps.LatLng(lat, lng));
         if (level != null) window.map.setLevel(level);
         updateMarkers(currentRestaurants);
