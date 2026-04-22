@@ -267,7 +267,7 @@ const getMarkerPinImage = (level, isHunterPick = false) => {
   const { color } = levelProperties[level] || levelProperties.default;
   let svg;
   if (isHunterPick) {
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="#F5F0E8" stroke-width="6" d="${OUTER_PIN}"/><circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/><text x="120" y="129" text-anchor="middle" font-size="110">🕵🏻‍♂️</text></svg>`;
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="#F5F0E8" stroke-width="6" d="${OUTER_PIN}"/><circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🕵🏻‍♂️</text></svg>`;
   } else {
     svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="#F5F0E8" stroke-width="6" d="${OUTER_PIN}${INNER_HOLE}"/></svg>`;
   }
@@ -331,7 +331,7 @@ const updateMarkers = (restaurants) => {
     const showLabel = window.map.getLevel() < 7;
     const overlay = new kakao.maps.CustomOverlay({
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
-      content: `<div style="margin-top:-8px;background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${displayName}</div>`,
+      content: `<div style="margin-top:-4px;background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${displayName}</div>`,
       xAnchor: 0.5,
       yAnchor: 0,
       zIndex: 2,
