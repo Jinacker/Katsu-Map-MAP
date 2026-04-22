@@ -75,9 +75,21 @@ script.onload = function() {
 kakao.maps.load(() => {
 try {
 
-const initialLat = 37.5665;
-const initialLng = 126.9780;
-const initialLevel = 8;
+const searchParams = new URLSearchParams(window.location.search);
+const isViewAll = searchParams.get('viewAll') === 'true';
+const parseQueryNumber = (value) => {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const koreaDefaultView = { lat: 36.25, lng: 127.85, level: 13 };
+const seoulDefaultView = { lat: 37.5665, lng: 126.9780, level: 8 };
+const defaultView = isViewAll ? koreaDefaultView : seoulDefaultView;
+
+const initialLat = parseQueryNumber(searchParams.get('lat')) ?? defaultView.lat;
+const initialLng = parseQueryNumber(searchParams.get('lng')) ?? defaultView.lng;
+const initialLevel = parseQueryNumber(searchParams.get('level')) ?? defaultView.level;
 
 const map = new kakao.maps.Map(document.getElementById('map'), {
   center: new kakao.maps.LatLng(initialLat, initialLng),
@@ -262,7 +274,7 @@ const levelProperties = {
 };
 
 const markerPinImageCache = {};
-const SELECTED_PIN_STROKE = '#FF1744';
+const SELECTED_PIN_STROKE = '#d6483e';
 const DEFAULT_PIN_STROKE = '#F5F0E8';
 const SELECTED_PIN_STROKE_WIDTH = 14;
 const DEFAULT_PIN_STROKE_WIDTH = 6;
