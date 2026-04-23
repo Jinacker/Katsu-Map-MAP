@@ -7,6 +7,10 @@
       "dest": "/map.html"
     },
     {
+      "src": "/v2",
+      "dest": "/map_v2.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/$1"
     }
