@@ -408,12 +408,13 @@ const handleMessage = (event) => {
       }
     }
     else if (message.type === 'PAN_TO' && message.payload) {
-      const { lat, lng, level } = message.payload;
+      const { lat, lng, level, yOffset } = message.payload;
       if (lat != null && lng != null && window.map) {
         selectedRestaurantLatLng = { lat, lng };
         preserveSelectionOnNextViewChange = true;
-        window.map.setCenter(new kakao.maps.LatLng(lat, lng));
         if (level != null) window.map.setLevel(level);
+        window.map.setCenter(new kakao.maps.LatLng(lat, lng));
+        if (yOffset) window.map.panBy(0, yOffset);
         updateMarkers(currentRestaurants);
       }
     }
