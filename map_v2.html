@@ -84,7 +84,7 @@ const parseQueryNumber = (value) => {
 };
 
 const koreaDefaultView = { lat: 36.25, lng: 127.85, level: 13 };
-const seoulDefaultView = { lat: 37.5665, lng: 126.9780, level: 8 };
+const seoulDefaultView = { lat: 37.5665, lng: 126.9780, level: 10 };
 const defaultView = isViewAll ? koreaDefaultView : seoulDefaultView;
 
 const initialLat = parseQueryNumber(searchParams.get('lat')) ?? defaultView.lat;
