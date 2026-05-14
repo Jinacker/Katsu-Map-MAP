@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<title>돈가스 지도 v2</title>
+<title>돈가스 지도 v3</title>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
 <style>
 html, body {
@@ -114,6 +114,13 @@ kakao.maps.event.addListener(map, 'zoom_changed', () => {
 
 kakao.maps.event.addListener(map, 'idle', () => {
   preserveSelectionOnNextViewChange = false;
+  if (window.ReactNativeWebView) {
+    const center = window.map.getCenter();
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'MAP_CENTER_CHANGED',
+      payload: { lat: center.getLat(), lng: center.getLng() },
+    }));
+  }
 });
 
 
