@@ -108,7 +108,7 @@ let preserveSelectionOnNextViewChange = false;
 map.setMaxLevel(13);
 
 kakao.maps.event.addListener(map, 'zoom_changed', () => {
-  const show = map.getLevel() < 7;
+  const show = map.getLevel() < 8;
   window.overlays.forEach(o => o.setMap(show ? map : null));
 });
 
@@ -150,7 +150,7 @@ const clusterStyle = (bg, size = 44) => ({
 window.clusterer = new kakao.maps.MarkerClusterer({
   map: map,
   averageCenter: true,
-  minLevel: 7,
+  minLevel: 8,
   minClusterSize: 1,
   gridSize: 120,
   disableClickZoom: true,
@@ -381,7 +381,7 @@ const updateMarkers = (restaurants) => {
 
     const rawName = restaurant.name || '';
     const displayName = rawName.length > 8 ? rawName.slice(0, 8) + '..' : rawName;
-    const showLabel = window.map.getLevel() < 7;
+    const showLabel = window.map.getLevel() < 8;
     const overlay = new kakao.maps.CustomOverlay({
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
       content: `<div style="margin-top:-4px;background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${displayName}</div>`,
