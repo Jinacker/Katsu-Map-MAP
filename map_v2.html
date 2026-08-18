@@ -306,7 +306,7 @@ const showSearchLocationMarker = (lat, lng, label) => {
 
   searchLocationOverlay = new kakao.maps.CustomOverlay({
     position,
-    content: `<div style="margin-top:24px;background:rgba(255,255,255,0.92);padding:2px 6px;border-radius:6px;font:bold 11px -apple-system,sans-serif;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.2);pointer-events:none">${escapeHtml(label)}</div>`,
+    content: `<div style="margin-top:24px;background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#d6483e;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${escapeHtml(label)}</div>`,
     xAnchor: 0.5,
     yAnchor: 0,
     zIndex: 1002,
