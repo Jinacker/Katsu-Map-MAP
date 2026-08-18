@@ -264,6 +264,56 @@ const showMyLocationMarker = (lat, lng) => {
   });
 };
 
+// --- 장소 검색 기준 마커 ---
+let searchLocationMarker = null;
+let searchLocationOverlay = null;
+
+const createEmojiMarkerImage = (emoji, size) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  context.font = `${size * 0.8}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(emoji, size / 2, size / 2 + size * 0.05);
+
+  return new kakao.maps.MarkerImage(
+    canvas.toDataURL('image/png'),
+    new kakao.maps.Size(size, size),
+    { offset: new kakao.maps.Point(size / 2, size / 2) },
+  );
+};
+
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const showSearchLocationMarker = (lat, lng, label) => {
+  if (searchLocationMarker) searchLocationMarker.setMap(null);
+  if (searchLocationOverlay) searchLocationOverlay.setMap(null);
+
+  const position = new kakao.maps.LatLng(lat, lng);
+  searchLocationMarker = new kakao.maps.Marker({
+    position,
+    map: window.map,
+    image: createEmojiMarkerImage('📍', 40),
+    zIndex: 1001,
+  });
+
+  searchLocationOverlay = new kakao.maps.CustomOverlay({
+    position,
+    content: `<div style="margin-top:24px;background:rgba(255,255,255,0.92);padding:2px 6px;border-radius:6px;font:bold 11px -apple-system,sans-serif;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.2);pointer-events:none">${escapeHtml(label)}</div>`,
+    xAnchor: 0.5,
+    yAnchor: 0,
+    zIndex: 1002,
+  });
+  searchLocationOverlay.setMap(window.map);
+};
+
 // --- 마커 속성 ---
 const levelProperties = {
   top5:   { color: '#E8192C', zIndex: 4 },
@@ -405,6 +455,12 @@ const handleMessage = (event) => {
       const { lat, lng } = message.payload;
       if (lat != null && lng != null) {
         showMyLocationMarker(lat, lng);
+      }
+    }
+    else if (message.type === 'SET_SEARCH_LOCATION' && message.payload) {
+      const { lat, lng, label } = message.payload;
+      if (lat != null && lng != null) {
+        showSearchLocationMarker(lat, lng, label || '검색한 장소');
       }
     }
     else if (message.type === 'PAN_TO' && message.payload) {
