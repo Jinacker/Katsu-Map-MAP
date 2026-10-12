@@ -41,6 +41,7 @@ z-index: 10;
 }
 </style>
 <script src="config.js"></script>
+<script src="event-pins.js?v=20261012"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -312,6 +313,18 @@ const getMarkerPinImage = (level, isHunterPick = false, isSelected = false) => {
 
 // --- 마커 업데이트 ---
 let currentRestaurants = [];
+let currentEventPinConfig = null;
+const eventPinImages = new Map();
+const getEventPinImage = (restaurant, selected) => {
+  const url = window.KatsuEventPins?.resolve(currentEventPinConfig, restaurant);
+  if (!url) return null;
+  const key = `${url}-${Boolean(selected)}`;
+  if (!eventPinImages.has(key)) {
+    const size = selected ? 48 : 40;
+    eventPinImages.set(key, new kakao.maps.MarkerImage(url, new kakao.maps.Size(size, size), { offset: new kakao.maps.Point(size / 2, size - 3) }));
+  }
+  return eventPinImages.get(key);
+};
 let selectedRestaurantLatLng = null;
 
 const clearSelectedRestaurant = () => {
@@ -348,7 +361,7 @@ const updateMarkers = (restaurants) => {
 
     const marker = new kakao.maps.Marker({
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
-      image: getMarkerPinImage(
+      image: getEventPinImage(restaurant, isSelected) || getMarkerPinImage(
         restaurant.recommendLevel,
         Boolean(restaurant.isKatsuHunterPick || restaurant.is_katsu_hunter_pick),
         Boolean(isSelected),
@@ -406,6 +419,11 @@ const handleMessage = (event) => {
     if (message.type === 'UPDATE_RESTAURANTS' && Array.isArray(message.payload)) {
       currentRestaurants = message.payload;
       selectedRestaurantLatLng = null;
+      updateMarkers(currentRestaurants);
+    }
+    else if (message.type === 'UPDATE_EVENT_CONFIG') {
+      currentEventPinConfig = window.KatsuEventPins?.normalize(message.payload) || null;
+      eventPinImages.clear();
       updateMarkers(currentRestaurants);
     }
     else if (message.type === 'SET_MY_LOCATION' && message.payload) {
