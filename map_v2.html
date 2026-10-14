@@ -364,7 +364,7 @@ const getEventPinImage = (restaurant, selected) => {
   const key = `${url}-${Boolean(selected)}`;
   if (!eventPinImages.has(key)) {
     const size = selected ? 48 : 40;
-    eventPinImages.set(key, new kakao.maps.MarkerImage(url, new kakao.maps.Size(size, size), { offset: new kakao.maps.Point(size / 2, size + 7) }));
+    eventPinImages.set(key, new kakao.maps.MarkerImage(url, new kakao.maps.Size(size, size), { offset: new kakao.maps.Point(size / 2, size + 5) }));
   }
   return eventPinImages.get(key);
 };
