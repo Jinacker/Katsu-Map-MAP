@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>돈가스 지도 이벤트</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+<style>
+html, body {
+width: 100%;
+height: 100%;
+margin: 0;
+padding: 0;
+overflow: hidden;
+-webkit-tap-highlight-color: transparent;
+}
+#map {
+position: absolute;
+top: 0; left: 0; right: 0; bottom: 0;
+}
+#error {
+position: fixed;
+inset: 0;
+display: none;
+align-items: center;
+justify-content: center;
+padding: 24px;
+background: rgba(255,255,255,0.96);
+color: #333;
+font: 14px/1.5 -apple-system, sans-serif;
+text-align: center;
+z-index: 10;
+}
+</style>
+<script src="config.js"></script>
+<script src="event-pins.js?v=20261012"></script>
+</head>
+<body>
+<div id="map"></div>
+<div id="error"></div>
+
+<script>
+(function() {
+const API_KEY = window.KAKAO_MAP_JS_KEY;
+
+if (!API_KEY) {
+  document.getElementById('error').style.display = 'flex';
+  document.getElementById('error').textContent = 'API 키가 설정되지 않았습니다.';
+  return;
+}
+
+// 지도 초기화 전 도착한 메시지 큐
+window._pendingMessages = [];
+window.addEventListener('message', (e) => {
+  if (!window._mapReady && typeof e.data === 'string') {
+    try { window._pendingMessages.push(JSON.parse(e.data)); } catch {}
+  }
+});
+document.addEventListener('message', (e) => {
+  if (!window._mapReady && typeof e.data === 'string') {
+    try { window._pendingMessages.push(JSON.parse(e.data)); } catch {}
+  }
+});
+
+const script = document.createElement('script');
+script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${API_KEY}&autoload=false`;
+script.onload = function() {
+kakao.maps.load(() => {
+try {
+
+const searchParams = new URLSearchParams(window.location.search);
+const isViewAll = searchParams.get('viewAll') === 'true';
+const parseQueryNumber = (value) => {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const koreaDefaultView = { lat: 36.25, lng: 127.85, level: 13 };
+const seoulDefaultView = { lat: 37.5665, lng: 126.9780, level: 10 };
+const defaultView = isViewAll ? koreaDefaultView : seoulDefaultView;
+
+const initialLat = parseQueryNumber(searchParams.get('lat')) ?? defaultView.lat;
+const initialLng = parseQueryNumber(searchParams.get('lng')) ?? defaultView.lng;
+const initialLevel = parseQueryNumber(searchParams.get('level')) ?? defaultView.level;
+
+const map = new kakao.maps.Map(document.getElementById('map'), {
+  center: new kakao.maps.LatLng(initialLat, initialLng),
+  level: initialLevel,
+  draggable: true,
+  scrollwheel: true,
+  disableDoubleClick: false,
+  disableDoubleClickZoom: false,
+});
+
+window.map = map;
+window.markers = [];
+window.overlays = [];
+let preserveSelectionOnNextViewChange = false;
+
+map.setMaxLevel(13);
+
+kakao.maps.event.addListener(map, 'zoom_changed', () => {
+  const show = map.getLevel() < 7;
+  window.overlays.forEach(o => o.setMap(show ? map : null));
+});
+
+kakao.maps.event.addListener(map, 'idle', () => {
+  preserveSelectionOnNextViewChange = false;
+});
+
+
+setTimeout(() => {
+  map.relayout();
+  window._mapReady = true;
+  // 초기화 전 쌓인 메시지 처리
+  window._pendingMessages.forEach(msg => {
+    window.messageListener && window.messageListener({ data: JSON.stringify(msg) });
+  });
+  window._pendingMessages = [];
+}, 100);
+
+
+// --- 내 위치 마커 ---
+let myLocationMarker = null;
+
+const showMyLocationMarker = (lat, lng) => {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+      <defs>
+        <filter id="dropshadow" height="1.5" width="1.5" x="-0.25" y="-0.25">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+          <feOffset in="blur" dx="1" dy="2" result="offsetBlur"/>
+          <feFlood flood-color="#000" flood-opacity="0.4" result="offsetColor"/>
+          <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
+          <feMerge>
+            <feMergeNode in="offsetBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <circle cx="16" cy="16" r="10" fill="#E74C3C" stroke="#FFFFFF" stroke-width="3" filter="url(#dropshadow)"/>
+    </svg>
+  `;
+  const imageUrl = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
+  const imageSize = new kakao.maps.Size(36, 36);
+  const imageOptions = { offset: new kakao.maps.Point(18, 18) };
+  const markerImage = new kakao.maps.MarkerImage(imageUrl, imageSize, imageOptions);
+
+  if (myLocationMarker) myLocationMarker.setMap(null);
+  myLocationMarker = new kakao.maps.Marker({
+    position: new kakao.maps.LatLng(lat, lng),
+    map: window.map,
+    image: markerImage,
+    zIndex: 1000,
+  });
+};
+
+// --- 장소 검색 기준 마커 ---
+let searchLocationMarker = null;
+let searchLocationOverlay = null;
+
+const createEmojiMarkerImage = (emoji, size) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  context.font = `${size * 0.8}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(emoji, size / 2, size / 2 + size * 0.05);
+
+  return new kakao.maps.MarkerImage(
+    canvas.toDataURL('image/png'),
+    new kakao.maps.Size(size, size),
+    { offset: new kakao.maps.Point(size / 2, size / 2) },
+  );
+};
+
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const showSearchLocationMarker = (lat, lng, label) => {
+  if (searchLocationMarker) searchLocationMarker.setMap(null);
+  if (searchLocationOverlay) searchLocationOverlay.setMap(null);
+
+  const position = new kakao.maps.LatLng(lat, lng);
+  searchLocationMarker = new kakao.maps.Marker({
+    position,
+    map: window.map,
+    image: createEmojiMarkerImage('📍', 40),
+    zIndex: 1001,
+  });
+
+  searchLocationOverlay = new kakao.maps.CustomOverlay({
+    position,
+    content: `<div style="margin-top:24px;background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#d6483e;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${escapeHtml(label)}</div>`,
+    xAnchor: 0.5,
+    yAnchor: 0,
+    zIndex: 1002,
+  });
+  searchLocationOverlay.setMap(window.map);
+};
+
+// --- 마커 속성 ---
+const levelProperties = {
+  top5:   { color: '#E8192C', zIndex: 4 },
+  best:   { color: '#FF6200', zIndex: 3 },
+  good:   { color: '#FFA832', zIndex: 2 },
+  normal: { color: '#FFCC33', zIndex: 1 },
+  default:{ color: '#FFCC33', zIndex: 0 },
+};
+
+const markerPinImageCache = {};
+const SELECTED_PIN_STROKE = '#d6483e';
+const DEFAULT_PIN_STROKE = '#F5F0E8';
+const SELECTED_PIN_STROKE_WIDTH = 14;
+const DEFAULT_PIN_STROKE_WIDTH = 6;
+
+const OUTER_PIN = 'M128,16a88.1,88.1,0,0,0-88,88c0,75.3,80,132.17,83.41,134.55a8,8,0,0,0,9.18,0C136,236.17,216,179.3,216,104A88.1,88.1,0,0,0,128,16Z';
+const INNER_HOLE = 'Zm0,56a32,32,0,1,1-32,32A32,32,0,0,1,128,72Z';
+
+const getMarkerPinImage = (level, isHunterPick = false, isSelected = false) => {
+  const cacheKey = `${level}-${isHunterPick}-${isSelected}`;
+  if (markerPinImageCache[cacheKey]) return markerPinImageCache[cacheKey];
+  const { color } = levelProperties[level] || levelProperties.default;
+  const stroke = isSelected ? SELECTED_PIN_STROKE : DEFAULT_PIN_STROKE;
+  const strokeWidth = isSelected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
+  let svg;
+  if (isHunterPick) {
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/><circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🕵🏻‍♂️</text></svg>`;
+  } else {
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}${INNER_HOLE}"/></svg>`;
+  }
+
+  const url = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
+  const size = new kakao.maps.Size(36, 52);
+  const offset = new kakao.maps.Point(18, 47);
+  const markerImage = new kakao.maps.MarkerImage(url, size, { offset });
+  markerPinImageCache[cacheKey] = markerImage;
+  return markerImage;
+};
+
+// --- 마커 업데이트 ---
+let currentRestaurants = [];
+let currentEventPinConfig = null;
+const eventPinImages = new Map();
+const getEventPinImage = (restaurant, selected) => {
+  const url = window.KatsuEventPins?.resolve(currentEventPinConfig, restaurant);
+  if (!url) return null;
+  const key = `${url}-${Boolean(selected)}`;
+  if (!eventPinImages.has(key)) {
+    const size = selected ? 48 : 40;
+    eventPinImages.set(key, new kakao.maps.MarkerImage(url, new kakao.maps.Size(size, size), { offset: new kakao.maps.Point(size / 2, size + 5) }));
+  }
+  return eventPinImages.get(key);
+};
+let selectedRestaurantLatLng = null;
+
+const clearSelectedRestaurant = () => {
+  if (!selectedRestaurantLatLng) return;
+  selectedRestaurantLatLng = null;
+  updateMarkers(currentRestaurants);
+};
+
+kakao.maps.event.addListener(map, 'click', () => {
+  clearSelectedRestaurant();
+});
+
+kakao.maps.event.addListener(map, 'dragstart', () => {
+  if (!preserveSelectionOnNextViewChange) clearSelectedRestaurant();
+});
+
+kakao.maps.event.addListener(map, 'zoom_start', () => {
+  if (!preserveSelectionOnNextViewChange) clearSelectedRestaurant();
+});
+
+const updateMarkers = (restaurants) => {
+  if (!window.map) return;
+  // 이벤트 지도는 클러스터링 없이 참여 가게 핀을 항상 그대로 보여준다.
+  window.markers.forEach(m => m.setMap(null));
+  window.markers = [];
+  window.overlays.forEach(o => o.setMap(null));
+  window.overlays = [];
+
+  restaurants.forEach(restaurant => {
+    if (restaurant.lat == null || restaurant.lng == null) return;
+    const isSelected = selectedRestaurantLatLng &&
+      restaurant.lat === selectedRestaurantLatLng.lat &&
+      restaurant.lng === selectedRestaurantLatLng.lng;
+    const props = levelProperties[restaurant.recommendLevel] || levelProperties.default;
+
+    const marker = new kakao.maps.Marker({
+      position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
+      image: getEventPinImage(restaurant, isSelected) || getMarkerPinImage(
+        restaurant.recommendLevel,
+        Boolean(restaurant.isKatsuHunterPick || restaurant.is_katsu_hunter_pick),
+        Boolean(isSelected),
+      ),
+      zIndex: isSelected ? 999 : (props.zIndex + 1),
+    });
+
+    kakao.maps.event.addListener(marker, 'click', () => {
+      const currentLevel = window.map.getLevel();
+      if (currentLevel >= 5) {
+        selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
+        preserveSelectionOnNextViewChange = true;
+        window.map.setLevel(4);
+        window.map.setCenter(new kakao.maps.LatLng(restaurant.lat, restaurant.lng));
+        updateMarkers(currentRestaurants);
+      } else {
+        if (!selectedRestaurantLatLng ||
+            selectedRestaurantLatLng.lat !== restaurant.lat ||
+            selectedRestaurantLatLng.lng !== restaurant.lng) {
+          selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
+          updateMarkers(currentRestaurants);
+        }
+      }
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SHOW_DIRECTIONS', payload: restaurant }));
+      }
+    });
+
+    window.markers.push(marker);
+
+    const rawName = restaurant.name || '';
+    const displayName = rawName.length > 8 ? rawName.slice(0, 8) + '..' : rawName;
+    const showLabel = window.map.getLevel() < 7;
+    const overlay = new kakao.maps.CustomOverlay({
+      position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
+      content: `<div style="margin-top:-4px;background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${displayName}</div>`,
+      xAnchor: 0.5,
+      yAnchor: 0,
+      zIndex: 2,
+    });
+    overlay.setMap(showLabel ? window.map : null);
+    window.overlays.push(overlay);
+  });
+
+  window.markers.forEach(m => m.setMap(window.map));
+};
+
+// --- WebView 메시지 핸들러 ---
+const handleMessage = (event) => {
+  try {
+    const eventData = event.data;
+    if (typeof eventData !== 'string') return;
+    const message = JSON.parse(eventData);
+
+    if (message.type === 'UPDATE_RESTAURANTS' && Array.isArray(message.payload)) {
+      currentRestaurants = message.payload;
+      selectedRestaurantLatLng = null;
+      updateMarkers(currentRestaurants);
+    }
+    else if (message.type === 'UPDATE_EVENT_CONFIG') {
+      currentEventPinConfig = window.KatsuEventPins?.normalize(message.payload) || null;
+      eventPinImages.clear();
+      updateMarkers(currentRestaurants);
+    }
+    else if (message.type === 'SET_MY_LOCATION' && message.payload) {
+      const { lat, lng } = message.payload;
+      if (lat != null && lng != null) {
+        showMyLocationMarker(lat, lng);
+      }
+    }
+    else if (message.type === 'SET_SEARCH_LOCATION' && message.payload) {
+      const { lat, lng, label } = message.payload;
+      if (lat != null && lng != null) {
+        showSearchLocationMarker(lat, lng, label || '검색한 장소');
+      }
+    }
+    else if (message.type === 'PAN_TO' && message.payload) {
+      const { lat, lng, level, yOffset } = message.payload;
+      if (lat != null && lng != null && window.map) {
+        selectedRestaurantLatLng = { lat, lng };
+        preserveSelectionOnNextViewChange = true;
+        if (level != null) window.map.setLevel(level);
+        window.map.setCenter(new kakao.maps.LatLng(lat, lng));
+        if (yOffset) window.map.panBy(0, yOffset);
+        updateMarkers(currentRestaurants);
+      }
+    }
+  } catch (e) {}
+};
+
+if (window.messageListener) {
+  document.removeEventListener('message', window.messageListener);
+  window.removeEventListener('message', window.messageListener);
+}
+window.messageListener = handleMessage;
+document.addEventListener('message', window.messageListener);
+window.addEventListener('message', window.messageListener);
+
+} catch (err) {
+  console.error('지도 초기화 오류:', err);
+}
+});
+};
+
+script.onerror = function() {
+  const el = document.getElementById('error');
+  el.style.display = 'flex';
+  el.textContent = 'Kakao Map SDK를 불러오지 못했습니다.';
+};
+
+document.head.appendChild(script);
+})();
+</script>
+</body>
+</html>
