@@ -333,15 +333,16 @@ const DEFAULT_PIN_STROKE_WIDTH = 6;
 const OUTER_PIN = 'M128,16a88.1,88.1,0,0,0-88,88c0,75.3,80,132.17,83.41,134.55a8,8,0,0,0,9.18,0C136,236.17,216,179.3,216,104A88.1,88.1,0,0,0,128,16Z';
 const INNER_HOLE = 'Zm0,56a32,32,0,1,1-32,32A32,32,0,0,1,128,72Z';
 
-const getMarkerPinImage = (level, isHunterPick = false, isSelected = false) => {
-  const cacheKey = `${level}-${isHunterPick}-${isSelected}`;
+const getMarkerPinImage = (level, isHunterPick = false, isSelected = false, isEventPin = false) => {
+  const cacheKey = `${level}-${isHunterPick}-${isSelected}-${isEventPin}`;
   if (markerPinImageCache[cacheKey]) return markerPinImageCache[cacheKey];
-  const { color } = levelProperties[level] || levelProperties.default;
+  const color = isEventPin ? '#1E3C62' : (levelProperties[level] || levelProperties.default).color;
   const stroke = isSelected ? SELECTED_PIN_STROKE : DEFAULT_PIN_STROKE;
   const strokeWidth = isSelected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
   let svg;
-  if (isHunterPick) {
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/><circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🕵🏻‍♂️</text></svg>`;
+  if (isHunterPick || isEventPin) {
+    const emoji = isEventPin ? '🦆' : '🕵🏻‍♂️';
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/><circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${emoji}</text></svg>`;
   } else {
     svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}${INNER_HOLE}"/></svg>`;
   }
@@ -357,16 +358,10 @@ const getMarkerPinImage = (level, isHunterPick = false, isSelected = false) => {
 // --- 마커 업데이트 ---
 let currentRestaurants = [];
 let currentEventPinConfig = null;
-const eventPinImages = new Map();
+// 이벤트 참여 가게도 일반 핀과 같은 SVG·크기·앵커를 쓰고, 남색 바탕과 오리로 구분한다.
 const getEventPinImage = (restaurant, selected) => {
-  const url = window.KatsuEventPins?.resolve(currentEventPinConfig, restaurant);
-  if (!url) return null;
-  const key = `${url}-${Boolean(selected)}`;
-  if (!eventPinImages.has(key)) {
-    const size = selected ? 48 : 40;
-    eventPinImages.set(key, new kakao.maps.MarkerImage(url, new kakao.maps.Size(size, size), { offset: new kakao.maps.Point(size / 2, size + 5) }));
-  }
-  return eventPinImages.get(key);
+  if (!currentEventPinConfig?.ids.has(restaurant.id)) return null;
+  return getMarkerPinImage(restaurant.recommendLevel, false, Boolean(selected), true);
 };
 let selectedRestaurantLatLng = null;
 
@@ -466,7 +461,6 @@ const handleMessage = (event) => {
     }
     else if (message.type === 'UPDATE_EVENT_CONFIG') {
       currentEventPinConfig = window.KatsuEventPins?.normalize(message.payload) || null;
-      eventPinImages.clear();
       updateMarkers(currentRestaurants);
     }
     else if (message.type === 'SET_MY_LOCATION' && message.payload) {
