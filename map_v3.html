@@ -299,7 +299,8 @@ const getMarkerPinImage = (level, isHunterPick = false, isSelected = false, isEv
   let svg;
   if (isHunterPick || isEventPin) {
     const emoji = isEventPin ? '🦆' : '🕵🏻‍♂️';
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/><circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${emoji}</text></svg>`;
+    const backdrop = isEventPin ? '' : '<circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/>';
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/>${backdrop}<text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${emoji}</text></svg>`;
   } else {
     svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}${INNER_HOLE}"/></svg>`;
   }
