@@ -300,7 +300,9 @@ const getMarkerPinImage = (level, isHunterPick = false, isSelected = false, isEv
   if (isHunterPick || isEventPin) {
     const emoji = isEventPin ? '🦆' : '🕵🏻‍♂️';
     const backdrop = isEventPin ? '' : '<circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/>';
-    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/>${backdrop}<text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${emoji}</text></svg>`;
+    const outline = isEventPin ? '<defs><filter id="duck-outline" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="6" result="expanded"/><feFlood flood-color="#FFFFFF" result="white"/><feComposite in="white" in2="expanded" operator="in" result="border"/><feMerge><feMergeNode in="border"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' : '';
+    const emojiFilter = isEventPin ? ' filter="url(#duck-outline)"' : '';
+    svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">${outline}<path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/>${backdrop}<text${emojiFilter} x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${emoji}</text></svg>`;
   } else {
     svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}${INNER_HOLE}"/></svg>`;
   }
