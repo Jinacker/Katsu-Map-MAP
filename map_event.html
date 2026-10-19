@@ -32,7 +32,8 @@ z-index: 10;
 }
 .walking-modal[hidden], .walking-gallery[hidden], .walking-gallery-controls[hidden] { display: none; }
 .walking-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px 16px; box-sizing: border-box; background: rgba(16, 30, 46, .4); font: 14px/1.7 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif; color: #21221c; }
-.walking-dialog { width: 100%; max-width: 400px; max-height: 50vh; max-height: 50dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
+.walking-dialog { width: 100%; max-width: 400px; max-height: 50vh; max-height: 50dvh; transform: translateY(-17.5vh); transform: translateY(-17.5dvh); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
+.walking-dialog:focus { outline: none; }
 .walking-dialog-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 20px; background: #fff; }
 .walking-dialog-header h2 { flex: 1; min-width: 0; margin: 0; color: #1E3C62; font-size: 15px; font-weight: 800; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
 .walking-dialog-header #walking-restaurant { color: #6b6b62; font-size: 12px; font-weight: 500; }
@@ -70,7 +71,7 @@ z-index: 10;
 <div id="map"></div>
 <div id="error"></div>
 <div id="walking-modal" class="walking-modal" role="dialog" aria-modal="true" aria-labelledby="walking-dialog-title" hidden>
-  <article class="walking-dialog">
+  <article class="walking-dialog" tabindex="-1">
     <header class="walking-dialog-header">
       <h2 id="walking-dialog-title"><span id="walking-restaurant"></span><span class="walking-arrow">---&gt;</span><span id="walking-name"></span></h2>
       <button id="walking-close" class="walking-close" type="button" aria-label="산책 코스 닫기">×</button>
@@ -595,6 +596,7 @@ const getWalkingPinImage = (selected = false) => {
 };
 
 const walkingModal = document.getElementById('walking-modal');
+const walkingDialog = walkingModal.querySelector('.walking-dialog');
 const walkingClose = document.getElementById('walking-close');
 const walkingPhotos = document.getElementById('walking-photos');
 const walkingPrev = document.getElementById('walking-photo-prev');
@@ -631,7 +633,7 @@ document.addEventListener('keydown', (event) => {
     const buttons = Array.from(walkingModal.querySelectorAll('button')).filter((button) => !button.disabled && button.offsetParent !== null);
     const first = buttons[0];
     const last = buttons[buttons.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    if (event.shiftKey && (document.activeElement === first || document.activeElement === walkingDialog)) { event.preventDefault(); last?.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
   }
 });
@@ -672,10 +674,10 @@ const openWalkingModal = (place, marker) => {
   });
   walkingModal.hidden = false;
   walkingPhotos.scrollLeft = 0;
-  walkingModal.querySelector('.walking-dialog').scrollTop = 0;
+  walkingDialog.scrollTop = 0;
   updateWalkingPhotoControls();
   document.getElementById('map').setAttribute('aria-hidden', 'true');
-  walkingClose.focus({ preventScroll: true });
+  walkingDialog.focus({ preventScroll: true });
 };
 
 const createWalkingMarkers = () => {

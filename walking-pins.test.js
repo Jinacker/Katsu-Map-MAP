@@ -128,7 +128,7 @@ test('산책핀 클릭은 앱 식당 모달을 호출하지 않고 해당 장소
   elements['walking-photo-prev'].fire('click');
   assert.equal(elements['walking-photo-count'].textContent, '1 / 2');
   assert.equal(elements['walking-photo-prev'].disabled, true);
-  assert.equal(document.activeElement, elements['walking-close']);
+  assert.equal(document.activeElement, elements['walking-dialog']);
   assert.deepEqual(posts, []);
 });
 
