@@ -34,25 +34,26 @@ z-index: 10;
 .walking-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px 16px; box-sizing: border-box; background: rgba(16, 30, 46, .4); font: 14px/1.7 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif; color: #21221c; }
 .walking-dialog { width: 100%; max-width: 400px; max-height: 50vh; max-height: 50dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
 .walking-dialog-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 20px; background: #fff; }
-.walking-dialog-header h2 { margin: 0; color: #1E3C62; font-size: 17px; font-weight: 800; }
+.walking-dialog-header h2 { flex: 1; min-width: 0; margin: 0; color: #1E3C62; font-size: 15px; font-weight: 800; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
 .walking-dialog button { border: 0; font: inherit; cursor: pointer; touch-action: manipulation; }
 .walking-close { flex: 0 0 40px; width: 40px; height: 40px; background: transparent; color: #1E3C62; font-size: 26px !important; line-height: 1; }
 .walking-dialog button:focus-visible { outline: 2px solid #1E3C62; outline-offset: -3px; }
-.walking-gallery { position: relative; margin: 0 20px; }
+.walking-content { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: start; gap: 14px; }
+.walking-gallery { position: relative; min-width: 0; margin: 0; }
+.walking-copy { min-width: 0; }
+.walking-gallery[hidden] + .walking-copy { grid-column: 1 / -1; }
+.walking-copy h3 { margin: 0 0 6px; color: #1E3C62; font-size: 12px; font-weight: 800; }
 .walking-photos { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: 10px; background: #f3f2ef; }
 .walking-photos::-webkit-scrollbar { display: none; }
 .walking-photo { flex: 0 0 100%; min-width: 0; margin: 0; scroll-snap-align: start; }
-.walking-photo img { display: block; width: 100%; height: clamp(150px, 27vh, 220px); object-fit: contain; }
+.walking-photo img { display: block; width: 100%; height: 170px; object-fit: contain; }
 .walking-photo-error { display: flex; align-items: center; justify-content: center; height: 150px; margin: 0; font-size: 12px; color: #6b6b62; }
 .walking-gallery-controls { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; font-size: 11px; color: #6b6b62; }
 .walking-gallery-controls button { width: 32px; height: 32px; padding: 0; border-radius: 50%; background: #f3f2ef; color: #1E3C62; font-size: 18px; }
 .walking-gallery-controls button:disabled { opacity: .35; cursor: default; }
-.walking-details { padding: 16px 20px 22px; }
-.walking-route { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-bottom: 12px; word-break: keep-all; }
-.walking-restaurant { font-size: 12px; color: #6b6b62; }
-.walking-arrow { color: #B2DEE8; font-size: 22px; font-weight: 800; white-space: nowrap; }
-.walking-route h3 { flex: 1 1 120px; margin: 0; font-size: 18px; line-height: 1.45; font-weight: 800; color: #1E3C62; white-space: pre-line; }
-.walking-description { margin: 0 0 16px; font-size: 13px; line-height: 1.85; word-break: keep-all; white-space: pre-line; overflow-wrap: anywhere; }
+.walking-details { padding: 0 20px 22px; }
+.walking-arrow { margin: 0 5px; color: #B2DEE8; white-space: nowrap; }
+.walking-description { margin: 0; font-size: 12px; line-height: 1.8; word-break: keep-all; white-space: pre-line; overflow-wrap: anywhere; }
 .walking-info { margin: 0; }
 .walking-info dt { margin-top: 12px; color: #1E3C62; font-size: 11px; font-weight: 800; }
 .walking-info dd { margin: 3px 0 0; color: #6b6b62; font-size: 12px; white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
@@ -66,20 +67,21 @@ z-index: 10;
 <div id="walking-modal" class="walking-modal" role="dialog" aria-modal="true" aria-labelledby="walking-dialog-title" hidden>
   <article class="walking-dialog">
     <header class="walking-dialog-header">
-      <h2 id="walking-dialog-title">추천 산책 코스</h2>
+      <h2 id="walking-dialog-title"><span id="walking-restaurant"></span><span class="walking-arrow">---&gt;</span><span id="walking-name"></span></h2>
       <button id="walking-close" class="walking-close" type="button" aria-label="산책 코스 닫기">×</button>
     </header>
-    <div id="walking-gallery" class="walking-gallery">
-      <div id="walking-photos" class="walking-photos" aria-label="산책 장소 사진"></div>
-      <div id="walking-gallery-controls" class="walking-gallery-controls">
-        <button id="walking-photo-prev" type="button" aria-label="이전 사진">‹</button>
-        <span id="walking-photo-count" aria-live="polite"></span>
-        <button id="walking-photo-next" type="button" aria-label="다음 사진">›</button>
-      </div>
-    </div>
     <div class="walking-details">
-      <div class="walking-route"><span id="walking-restaurant" class="walking-restaurant"></span><span class="walking-arrow" aria-hidden="true">··· →</span><h3 id="walking-name"></h3></div>
-      <p id="walking-description" class="walking-description"></p>
+      <div class="walking-content">
+        <div id="walking-gallery" class="walking-gallery">
+          <div id="walking-photos" class="walking-photos" aria-label="산책 장소 사진"></div>
+          <div id="walking-gallery-controls" class="walking-gallery-controls">
+            <button id="walking-photo-prev" type="button" aria-label="이전 사진">‹</button>
+            <span id="walking-photo-count" aria-live="polite"></span>
+            <button id="walking-photo-next" type="button" aria-label="다음 사진">›</button>
+          </div>
+        </div>
+        <div class="walking-copy"><h3>추천 산책 코스</h3><p id="walking-description" class="walking-description"></p></div>
+      </div>
       <dl class="walking-info"><dt>주소</dt><dd id="walking-address"></dd><dt>추천 카페</dt><dd id="walking-cafes"></dd></dl>
     </div>
   </article>
