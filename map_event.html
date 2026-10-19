@@ -887,6 +887,12 @@ const showWalkingConnection = (place, direction = 'toRestaurant') => {
   walkingConnectionFrame = window.requestAnimationFrame(draw);
 };
 
+const showRestaurantWalkingConnection = (restaurant) => {
+  const places = WALKING_PLACES.filter((place) =>
+    normalizeWalkingRestaurantName(place.restaurant) === normalizeWalkingRestaurantName(restaurant.name));
+  showWalkingConnection(places.length === 1 ? places[0] : null, 'toPlace');
+};
+
 const closeWalkingModal = () => {
   if (walkingModal.hidden) return;
   walkingModal.hidden = true;
@@ -1040,8 +1046,7 @@ const updateMarkers = (restaurants) => {
       selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
       focusEventMapPin(restaurant.lat, restaurant.lng);
       updateMarkers(currentRestaurants);
-      const places = WALKING_PLACES.filter((place) => normalizeWalkingRestaurantName(place.restaurant) === normalizeWalkingRestaurantName(restaurant.name));
-      showWalkingConnection(places.length === 1 ? places[0] : null, 'toPlace');
+      showRestaurantWalkingConnection(restaurant);
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SHOW_DIRECTIONS', payload: restaurant }));
       }
@@ -1102,13 +1107,22 @@ const handleMessage = (event) => {
       const { lat, lng, level, yOffset } = message.payload;
       if (lat != null && lng != null && window.map) {
         closeWalkingModal();
-        focusedEventPinPosition = null;
+        // 구버전 앱 카드 메시지는 ID 없이 좌표만 보내므로 같은 위치의 가게가 하나일 때만 연결한다.
+        const matches = currentRestaurants.filter((restaurant) =>
+          restaurant.lat != null && restaurant.lng != null &&
+          restaurant.lat !== '' && restaurant.lng !== '' &&
+          Number.isFinite(Number(restaurant.lat)) && Number.isFinite(Number(restaurant.lng)) &&
+          Number(restaurant.lat) === Number(lat) && Number(restaurant.lng) === Number(lng));
+        const restaurant = matches.length === 1 ? matches[0] : null;
+        const position = new kakao.maps.LatLng(lat, lng);
+        focusedEventPinPosition = restaurant ? position : null;
         selectedRestaurantLatLng = { lat, lng };
         preserveSelectionOnNextViewChange = true;
         if (level != null) window.map.setLevel(level);
-        window.map.setCenter(new kakao.maps.LatLng(lat, lng));
+        window.map.setCenter(position);
         if (yOffset) window.map.panBy(0, yOffset);
         updateMarkers(currentRestaurants);
+        if (restaurant) showRestaurantWalkingConnection(restaurant);
       }
     }
   } catch (e) {}
