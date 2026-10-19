@@ -222,9 +222,9 @@ const restrictEventMapView = (() => {
     const se = projection.coordsFromContainerPoint(new kakao.maps.Point(width, height)).toCoords();
     const halfWidth = Math.abs(se.getX() - nw.getX()) / 2;
     const halfHeight = Math.abs(se.getY() - nw.getY()) / 2;
-    // WCONG는 미터의 2.5배다. 여백은 최대 900m, 화면 각 축의 40%까지 허용한다.
+    // WCONG는 미터의 2.5배다. 여백은 최대 1500m, 화면 각 축의 40%까지 허용한다.
     const clampAxis = (value, start, end, halfSpan, focusValue) => {
-      const margin = Math.min(900 * 2.5, halfSpan * .8);
+      const margin = Math.min(1500 * 2.5, halfSpan * .8);
       let min = start - margin + halfSpan;
       let max = end + margin - halfSpan;
       if (min > max) min = max = (start + end) / 2;
@@ -269,7 +269,15 @@ const restrictEventMapView = (() => {
 const focusEventMapPin = (lat, lng) => {
   focusedEventPinPosition = new kakao.maps.LatLng(Number(lat), Number(lng));
   preserveSelectionOnNextViewChange = true;
-  map.setCenter(focusedEventPinPosition);
+  // 중앙 위치와 4레벨 확대를 한 번에 적용해 이동 중 중심이 어긋나지 않게 한다.
+  if (typeof map.jump === 'function') {
+    map.jump(focusedEventPinPosition, 4, {
+      animate: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? false : { duration: 350 },
+    });
+  } else {
+    map.setLevel(4);
+    map.setCenter(focusedEventPinPosition);
+  }
   refreshWalkingConnection?.();
 };
 // --- End event viewport bounds ---
@@ -676,7 +684,7 @@ const WALKING_PLACES = [
   },
   {
     "id": 18,
-    "restaurant": "고래돈가스",
+    "restaurant": "고래돈가스 고대점",
     "name": "정릉천 제기2교",
     "address": "서울 동대문구 고산자로 547 1층 조개베네\n*이 건물 앞에 제기2교가 있음",
     "description": "정릉천에는 북한산에서 내려와 정릉역까지 흐르는 구간, 그리고 고려대학교와 종암동에서 다시 시작되어 청계천으로 이어지는 구간이 있어요. 윗자락은 계곡 같은 느낌이, 아래쪽은 고가도로 아래에 있어서 옛 서울의 느낌이 물씬 납니다. 정겨운 가게들이 천변에 쭉 늘어선 것도 산책의 재미를 더해줘요.",
@@ -723,8 +731,8 @@ let restoreWalkingConnectionLayer = null;
 
 const normalizeWalkingRestaurantName = (name) => {
   const normalized = String(name ?? '').normalize('NFKC').replace(/\s+/g, '');
-  // 산책 원본의 '고래돈가스'와 가게 목록의 '고래돈까스'는 같은 짝이다.
-  return normalized === '고래돈까스' ? '고래돈가스' : normalized;
+  // 정릉천 제기2교는 고대점에 연결하며 돈가스·돈까스 표기 차이만 허용한다.
+  return normalized === '고래돈까스고대점' ? '고래돈가스고대점' : normalized;
 };
 
 const updateWalkingMarkerImages = () => {
@@ -887,6 +895,12 @@ const showWalkingConnection = (place, direction = 'toRestaurant') => {
   walkingConnectionFrame = window.requestAnimationFrame(draw);
 };
 
+const showRestaurantWalkingConnection = (restaurant) => {
+  const places = WALKING_PLACES.filter((place) =>
+    normalizeWalkingRestaurantName(place.restaurant) === normalizeWalkingRestaurantName(restaurant.name));
+  showWalkingConnection(places.length === 1 ? places[0] : null, 'toPlace');
+};
+
 const closeWalkingModal = () => {
   if (walkingModal.hidden) return;
   walkingModal.hidden = true;
@@ -1040,8 +1054,7 @@ const updateMarkers = (restaurants) => {
       selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
       focusEventMapPin(restaurant.lat, restaurant.lng);
       updateMarkers(currentRestaurants);
-      const places = WALKING_PLACES.filter((place) => normalizeWalkingRestaurantName(place.restaurant) === normalizeWalkingRestaurantName(restaurant.name));
-      showWalkingConnection(places.length === 1 ? places[0] : null, 'toPlace');
+      showRestaurantWalkingConnection(restaurant);
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SHOW_DIRECTIONS', payload: restaurant }));
       }
@@ -1102,13 +1115,22 @@ const handleMessage = (event) => {
       const { lat, lng, level, yOffset } = message.payload;
       if (lat != null && lng != null && window.map) {
         closeWalkingModal();
-        focusedEventPinPosition = null;
+        // 구버전 앱 카드 메시지는 ID 없이 좌표만 보내므로 같은 위치의 가게가 하나일 때만 연결한다.
+        const matches = currentRestaurants.filter((restaurant) =>
+          restaurant.lat != null && restaurant.lng != null &&
+          restaurant.lat !== '' && restaurant.lng !== '' &&
+          Number.isFinite(Number(restaurant.lat)) && Number.isFinite(Number(restaurant.lng)) &&
+          Number(restaurant.lat) === Number(lat) && Number(restaurant.lng) === Number(lng));
+        const restaurant = matches.length === 1 ? matches[0] : null;
+        const position = new kakao.maps.LatLng(lat, lng);
+        focusedEventPinPosition = restaurant ? position : null;
         selectedRestaurantLatLng = { lat, lng };
         preserveSelectionOnNextViewChange = true;
         if (level != null) window.map.setLevel(level);
-        window.map.setCenter(new kakao.maps.LatLng(lat, lng));
+        window.map.setCenter(position);
         if (yOffset) window.map.panBy(0, yOffset);
         updateMarkers(currentRestaurants);
+        if (restaurant) showRestaurantWalkingConnection(restaurant);
       }
     }
   } catch (e) {}
