@@ -189,6 +189,7 @@ window.walkingMarkers = [];
 window.walkingOverlays = [];
 let preserveSelectionOnNextViewChange = false;
 let refreshWalkingConnection = null;
+let eventMapZooming = false;
 
 map.setMaxLevel(7);
 
@@ -201,6 +202,7 @@ kakao.maps.event.addListener(map, 'zoom_changed', () => {
 
 kakao.maps.event.addListener(map, 'idle', () => {
   preserveSelectionOnNextViewChange = false;
+  eventMapZooming = false;
 });
 
 // --- Event viewport bounds ---
@@ -266,19 +268,63 @@ const restrictEventMapView = (() => {
   return constrain;
 })();
 
-const focusEventMapPin = (lat, lng) => {
-  focusedEventPinPosition = new kakao.maps.LatLng(Number(lat), Number(lng));
+let cancelEventPinFocus = null;
+const focusEventMapPin = (lat, lng, onFocused) => {
+  cancelEventPinFocus?.();
+  clearWalkingConnection();
+  selectedWalkingPlace = null;
+  updateMarkers(currentRestaurants);
+  const position = new kakao.maps.LatLng(Number(lat), Number(lng));
+  focusedEventPinPosition = position;
   preserveSelectionOnNextViewChange = true;
-  // 중앙 위치와 4레벨 확대를 한 번에 적용해 이동 중 중심이 어긋나지 않게 한다.
-  if (typeof map.jump === 'function') {
-    map.jump(focusedEventPinPosition, 4, {
-      animate: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? false : { duration: 350 },
+  let moving = false;
+  let idleDuringMove = false;
+  let frame = null;
+  const cancel = () => {
+    kakao.maps.event.removeListener(map, 'idle', onIdle);
+    if (frame !== null) window.cancelAnimationFrame(frame);
+    frame = null;
+    if (cancelEventPinFocus === cancel) cancelEventPinFocus = null;
+  };
+  const finish = () => {
+    if (focusedEventPinPosition !== position) { cancel(); return; }
+    if (eventMapZooming || map.getLevel() !== 4 || frame !== null) return;
+    // 완료 이벤트 다음 프레임의 투영 좌표로 화살표를 그린다.
+    frame = window.requestAnimationFrame(() => {
+      frame = null;
+      if (cancelEventPinFocus !== cancel || eventMapZooming || map.getLevel() !== 4) return;
+      cancel();
+      onFocused?.();
     });
-  } else {
-    map.setLevel(4);
-    map.setCenter(focusedEventPinPosition);
+  };
+  const onIdle = () => {
+    if (moving) { idleDuringMove = true; return; }
+    finish();
+  };
+  cancelEventPinFocus = cancel;
+  kakao.maps.event.addListener(map, 'idle', onIdle);
+  const point = map.getProjection().containerPointFromCoords(position);
+  const element = document.getElementById('map');
+  const alreadyFocused = !eventMapZooming && map.getLevel() === 4 &&
+    Math.abs(point.x - element.clientWidth / 2) <= 1.5 &&
+    Math.abs(point.y - element.clientHeight / 2) <= 1.5;
+  if (alreadyFocused) { finish(); return; }
+  // 중앙 위치와 4레벨 확대를 한 번에 적용해 이동 중 중심이 어긋나지 않게 한다.
+  moving = true;
+  try {
+    if (typeof map.jump === 'function') {
+      map.jump(position, 4, {
+        animate: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? false : { duration: 350 },
+      });
+    } else {
+      map.setLevel(4);
+      map.setCenter(position);
+    }
+  } finally {
+    moving = false;
   }
-  refreshWalkingConnection?.();
+  // 애니메이션 없는 이동은 완료 이벤트가 함수 안에서 발생할 수 있다.
+  if (idleDuringMove) finish();
 };
 // --- End event viewport bounds ---
 
@@ -936,7 +982,7 @@ document.addEventListener('keydown', (event) => {
 const openWalkingModal = (place) => {
   clearSelectedRestaurant();
   closeWalkingModal();
-  focusEventMapPin(place.lat, place.lng);
+  focusEventMapPin(place.lat, place.lng, () => showWalkingConnection(place));
   focusBeforeWalking = document.activeElement;
   for (const [id, text] of Object.entries({
     'walking-restaurant': place.restaurant,
@@ -973,7 +1019,6 @@ const openWalkingModal = (place) => {
   updateWalkingPhotoControls();
   document.getElementById('map').setAttribute('aria-hidden', 'true');
   walkingDialog.focus({ preventScroll: true });
-  showWalkingConnection(place);
 };
 
 const createWalkingMarkers = () => {
@@ -1018,6 +1063,7 @@ kakao.maps.event.addListener(map, 'dragstart', () => {
 });
 
 kakao.maps.event.addListener(map, 'zoom_start', () => {
+  eventMapZooming = true;
   if (!preserveSelectionOnNextViewChange) clearSelectedRestaurant();
 });
 
@@ -1052,9 +1098,8 @@ const updateMarkers = (restaurants) => {
     kakao.maps.event.addListener(marker, 'click', () => {
       closeWalkingModal();
       selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
-      focusEventMapPin(restaurant.lat, restaurant.lng);
+      focusEventMapPin(restaurant.lat, restaurant.lng, () => showRestaurantWalkingConnection(restaurant));
       updateMarkers(currentRestaurants);
-      showRestaurantWalkingConnection(restaurant);
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SHOW_DIRECTIONS', payload: restaurant }));
       }
@@ -1115,6 +1160,7 @@ const handleMessage = (event) => {
       const { lat, lng, level, yOffset } = message.payload;
       if (lat != null && lng != null && window.map) {
         closeWalkingModal();
+        cancelEventPinFocus?.();
         // 구버전 앱 카드 메시지는 ID 없이 좌표만 보내므로 같은 위치의 가게가 하나일 때만 연결한다.
         const matches = currentRestaurants.filter((restaurant) =>
           restaurant.lat != null && restaurant.lng != null &&
