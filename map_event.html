@@ -31,6 +31,7 @@ text-align: center;
 z-index: 10;
 }
 .walking-modal[hidden], .walking-gallery[hidden], .walking-gallery-controls[hidden] { display: none; }
+.walking-modal, .walking-modal * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
 .walking-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px 16px; box-sizing: border-box; background: rgba(16, 30, 46, .4); font: 14px/1.7 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif; color: #21221c; }
 .walking-dialog { width: 100%; max-width: 400px; max-height: 50vh; max-height: 50dvh; transform: translateY(-10vh); transform: translateY(-10dvh); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
 .walking-dialog:focus { outline: none; }
@@ -152,6 +153,55 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 });
 
 window.map = map;
+
+// 제공된 QGIS 공간정보를 실제 좌표에 맞춰 바닥 지도 위·핀 아래에 표시한다.
+// 이미지를 읽지 못하면 레이어를 추가하지 않아 기존 카카오 지도를 유지한다.
+if (typeof kakao.maps.AbstractOverlay === 'function') {
+  const designMap = {
+    width: 3072,
+    height: 2560,
+    northWest: [37.6098836511, 126.9852767468],
+    northEast: [37.6098718179, 127.0548610957],
+    southWest: [37.5637528190, 126.9852858302],
+  };
+  function EventDesignMap(image) {
+    this.node = image;
+    this.northWest = new kakao.maps.LatLng(...designMap.northWest);
+    this.northEast = new kakao.maps.LatLng(...designMap.northEast);
+    this.southWest = new kakao.maps.LatLng(...designMap.southWest);
+  }
+  EventDesignMap.prototype = new kakao.maps.AbstractOverlay();
+  EventDesignMap.prototype.onAdd = function() {
+    const panel = this.getPanels().overlayLayer;
+    // 같은 z-index 0인 산책핀도 위에 남도록 항상 첫 번째 노드에 넣는다.
+    panel.insertBefore(this.node, panel.firstChild);
+  };
+  EventDesignMap.prototype.draw = function() {
+    const projection = this.getProjection();
+    const northWest = projection.pointFromCoords(this.northWest);
+    const northEast = projection.pointFromCoords(this.northEast);
+    const southWest = projection.pointFromCoords(this.southWest);
+    // 세 모서리를 기준으로 크기·회전을 함께 맞춘다. 지도 이동·줌은 SDK가 draw를 호출한다.
+    this.node.style.transform = `matrix(${(northEast.x - northWest.x) / designMap.width},${(northEast.y - northWest.y) / designMap.width},${(southWest.x - northWest.x) / designMap.height},${(southWest.y - northWest.y) / designMap.height},${northWest.x},${northWest.y})`;
+  };
+  EventDesignMap.prototype.onRemove = function() {
+    if (this.node.parentNode) this.node.parentNode.removeChild(this.node);
+  };
+  const designImage = document.createElement('img');
+  designImage.width = designMap.width;
+  designImage.height = designMap.height;
+  designImage.alt = '';
+  designImage.draggable = false;
+  designImage.decoding = 'async';
+  designImage.setAttribute('aria-hidden', 'true');
+  designImage.style.cssText = `position:absolute;left:0;top:0;width:${designMap.width}px;height:${designMap.height}px;max-width:none;transform-origin:0 0;z-index:0;pointer-events:none;user-select:none;-webkit-user-drag:none;`;
+  designImage.onload = () => {
+    const layer = new EventDesignMap(designImage);
+    layer.setMap(map);
+  };
+  designImage.src = '/seongbukcheon-design-map.webp';
+}
+
 window.markers = [];
 window.overlays = [];
 // 식당 필터·목록 갱신과 별개로 유지하는 산책 장소 핀과 라벨.
@@ -834,6 +884,7 @@ const openWalkingModal = (place) => {
     const figure = document.createElement('figure');
     figure.className = 'walking-photo';
     const image = document.createElement('img');
+    image.draggable = false;
     image.alt = `${place.name} 사진 ${index + 1}`;
     image.loading = index === 0 ? 'eager' : 'lazy';
     image.src = url;
