@@ -269,7 +269,15 @@ const restrictEventMapView = (() => {
 const focusEventMapPin = (lat, lng) => {
   focusedEventPinPosition = new kakao.maps.LatLng(Number(lat), Number(lng));
   preserveSelectionOnNextViewChange = true;
-  map.setCenter(focusedEventPinPosition);
+  // 중앙 위치와 4레벨 확대를 한 번에 적용해 이동 중 중심이 어긋나지 않게 한다.
+  if (typeof map.jump === 'function') {
+    map.jump(focusedEventPinPosition, 4, {
+      animate: window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? false : { duration: 350 },
+    });
+  } else {
+    map.setLevel(4);
+    map.setCenter(focusedEventPinPosition);
+  }
   refreshWalkingConnection?.();
 };
 // --- End event viewport bounds ---
