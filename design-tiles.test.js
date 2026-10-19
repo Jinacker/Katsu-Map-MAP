@@ -19,6 +19,9 @@ test('실제 SDK의 성북천 타일 좌표가 모든 지원 레벨에서 디자
   assert.equal(config.pixelRatio, 2);
   assert.equal(config.minLevel, 3);
   assert.equal(config.maxLevel, 7);
+  assert.deepEqual(JSON.parse(JSON.stringify(config.boundsWcong)), {
+    west: 496750, east: 512110, south: 1128950, north: 1141750,
+  });
   for (const [level, x, y] of sdkTiles) {
     const range = config.levels[level];
     assert.ok(range && x >= range.xMin && x <= range.xMax && y >= range.yMin && y <= range.yMax, `level ${level}`);
@@ -29,7 +32,7 @@ test('실제 SDK의 성북천 타일 좌표가 모든 지원 레벨에서 디자
   }
 });
 
-test('실제 HTML의 타일 URL 함수가 성북천은 이미지로, 범위 밖은 검정으로 연결한다', () => {
+test('실제 HTML의 타일 URL 함수가 성북천은 이미지로, 범위 밖은 공용 바탕 타일로 연결한다', () => {
   let registered;
   class Tileset {
     constructor(width, height, url, copyrights, dark, min, max) {

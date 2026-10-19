@@ -1,5 +1,5 @@
 window.KatsuEventDesignTiles = {
-  "version": "20261019-native-6",
+  "version": "20261019-native-7",
   "tileSize": 512,
   "pixelRatio": 2,
   "minLevel": 3,
@@ -35,5 +35,11 @@ window.KatsuEventDesignTiles = {
       "yMin": 62,
       "yMax": 63
     }
+  },
+  "boundsWcong": {
+    "west": 496750.0,
+    "east": 512110.0,
+    "south": 1128950.0,
+    "north": 1141750.0
   }
 };

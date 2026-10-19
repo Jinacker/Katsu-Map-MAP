@@ -17,7 +17,8 @@ COLUMNS, ROWS = 12, 10
 EAST, SOUTH = WEST + COLUMNS * SOURCE_SIZE, NORTH - ROWS * SOURCE_SIZE
 TILE_SIZE, PIXEL_RATIO = 512, 2
 MIN_LEVEL, MAX_LEVEL = 3, 7
-VERSION = "20261019-native-6"
+VERSION = "20261019-native-7"
+OUTSIDE_COLOR = "#5e5e5e"
 # WCONG = EPSG:5181 * 2.5; Kakao's native tile plane adds *3.2 and
 # offsets (240000, 480000). EPSG:5186 northing is EPSG:5181 + 100000.
 # Thus native = (EPSG:5186 X * 8 + 240000, Y * 8 - 320000).
@@ -64,7 +65,7 @@ def render_tile(job):
     north = ((y + 1) * world_span - OFFSET_Y) / NATIVE_SCALE
     east, south = west + span, north - span
     image = QImage(TILE_SIZE * PIXEL_RATIO, TILE_SIZE * PIXEL_RATIO, QImage.Format_RGB32)
-    image.fill(QColor("#000000"))
+    image.fill(QColor(OUTSIDE_COLOR))
     painter = QPainter(image)
     painter.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
     # QtSvg does not reliably clip overflowing source paths to the root viewBox.
@@ -109,13 +110,16 @@ def generate(source, output, jobs, edges_only=False):
         raise ValueError("An existing complete tile set is required for --edges-only")
     output.mkdir(parents=True, exist_ok=True)
     application = QGuiApplication([])
-    black = QImage(1, 1, QImage.Format_RGB32)
-    black.fill(QColor("#000000"))
-    if not black.save(str(output / "black.webp"), "WEBP", 100):
+    outside = QImage(1, 1, QImage.Format_RGB32)
+    outside.fill(QColor(OUTSIDE_COLOR))
+    # Keep the existing shared-tile path; the manifest version invalidates caches.
+    if not outside.save(str(output / "black.webp"), "WEBP", 100):
         raise RuntimeError("Cannot write the outside-area tile")
     manifest = {
         "version": VERSION, "tileSize": TILE_SIZE, "pixelRatio": PIXEL_RATIO,
         "minLevel": MIN_LEVEL, "maxLevel": MAX_LEVEL, "levels": {},
+        "boundsWcong": {"west": WEST * 2.5, "east": EAST * 2.5,
+                        "south": (SOUTH - 100000) * 2.5, "north": (NORTH - 100000) * 2.5},
     }
     work = []
     expected = {}
