@@ -51,10 +51,12 @@ z-index: 10;
 .walking-photo { flex: 0 0 100%; min-width: 0; height: 100%; margin: 0; scroll-snap-align: start; }
 .walking-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .walking-photo-error { display: flex; align-items: center; justify-content: center; height: 100%; margin: 0; padding: 8px; box-sizing: border-box; font-size: 12px; color: #6b6b62; }
-.walking-gallery-controls { position: absolute; right: 4px; bottom: 4px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 0; font-size: 10px; color: #1E3C62; text-shadow: 0 1px 2px #fff; }
-.walking-gallery-controls button { width: 24px; height: 24px; padding: 0; border-radius: 50%; background: rgba(255,255,255,.9); color: #1E3C62; font-size: 14px; text-shadow: none; }
+.walking-gallery-controls { position: absolute; inset: 0; pointer-events: none; }
+.walking-gallery-controls button { position: absolute; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; width: 28px; height: 36px; padding: 0; border-radius: 0; background: transparent; color: #B2DEE8; font-size: 24px; font-weight: 700; line-height: 1; pointer-events: auto; }
+#walking-photo-prev { left: 0; }
+#walking-photo-next { right: 0; }
 #walking-photo-count { display: none; }
-.walking-gallery-controls button:disabled { opacity: .35; cursor: default; }
+.walking-gallery-controls button:disabled { visibility: hidden; pointer-events: none; }
 .walking-details { padding: 0 20px 22px; }
 .walking-arrow { margin: 0 5px; color: #B2DEE8; white-space: nowrap; }
 .walking-description { margin: 0; font-size: 12px; line-height: 1.8; word-break: keep-all; white-space: pre-line; overflow-wrap: anywhere; }
