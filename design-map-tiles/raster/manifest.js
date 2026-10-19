@@ -1,51 +1,39 @@
 window.KatsuEventDesignTiles = {
-  "version": "20261019-native-1",
-  "tileSize": 256,
+  "version": "20261019-native-4",
+  "tileSize": 512,
   "pixelRatio": 2,
-  "minLevel": 1,
+  "minLevel": 3,
   "maxLevel": 7,
   "levels": {
-    "1": {
-      "xMin": 970,
-      "xMax": 1000,
-      "yMin": 2204,
-      "yMax": 2229
-    },
-    "2": {
-      "xMin": 485,
-      "xMax": 500,
-      "yMin": 1102,
-      "yMax": 1114
-    },
     "3": {
-      "xMin": 242,
-      "xMax": 250,
-      "yMin": 551,
-      "yMax": 557
+      "xMin": 446,
+      "xMax": 458,
+      "yMin": 999,
+      "yMax": 1009
     },
     "4": {
-      "xMin": 121,
-      "xMax": 125,
-      "yMin": 275,
-      "yMax": 278
+      "xMin": 223,
+      "xMax": 229,
+      "yMin": 499,
+      "yMax": 504
     },
     "5": {
-      "xMin": 60,
-      "xMax": 62,
-      "yMin": 137,
-      "yMax": 139
+      "xMin": 111,
+      "xMax": 114,
+      "yMin": 249,
+      "yMax": 252
     },
     "6": {
-      "xMin": 30,
-      "xMax": 31,
-      "yMin": 68,
-      "yMax": 69
+      "xMin": 55,
+      "xMax": 57,
+      "yMin": 124,
+      "yMax": 126
     },
     "7": {
-      "xMin": 15,
-      "xMax": 15,
-      "yMin": 34,
-      "yMax": 34
+      "xMin": 27,
+      "xMax": 28,
+      "yMin": 62,
+      "yMax": 63
     }
   }
 };

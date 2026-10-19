@@ -71,7 +71,7 @@ z-index: 10;
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
-<script src="design-map-tiles/raster/manifest.js?v=20261019-native-1"></script>
+<script src="design-map-tiles/raster/manifest.js?v=20261019-native-4"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -143,7 +143,7 @@ const defaultView = isViewAll ? koreaDefaultView : seoulDefaultView;
 
 const initialLat = parseQueryNumber(searchParams.get('lat')) ?? defaultView.lat;
 const initialLng = parseQueryNumber(searchParams.get('lng')) ?? defaultView.lng;
-const initialLevel = Math.min(7, parseQueryNumber(searchParams.get('level')) ?? defaultView.level);
+const initialLevel = Math.max(3, Math.min(7, parseQueryNumber(searchParams.get('level')) ?? defaultView.level));
 
 // 디자인을 별도 오버레이가 아닌 정식 바닥 타일로 사용한다.
 // SDK가 이미지 캐시·이동·핀치·줌 애니메이션을 함께 관리한다.
@@ -170,6 +170,7 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
   center: new kakao.maps.LatLng(initialLat, initialLng),
   level: initialLevel,
   mapTypeId: eventMapTypeId,
+  minLevel: 3,
   maxLevel: 7,
   draggable: true,
   scrollwheel: true,
