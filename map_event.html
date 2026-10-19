@@ -16,7 +16,7 @@ overflow: hidden;
 #map {
 position: absolute;
 top: 0; left: 0; right: 0; bottom: 0;
-background: #000;
+background: #5e5e5e;
 }
 #error {
 position: fixed;
@@ -71,7 +71,7 @@ z-index: 10;
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
-<script src="design-map-tiles/raster/manifest.js?v=20261019-native-6"></script>
+<script src="design-map-tiles/raster/manifest.js?v=20261019-native-7"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -179,8 +179,8 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 });
 
 window.map = map;
-// SDK의 기본 격자 배경도 지워 타일 로딩 중에는 검정 바탕만 보이게 한다.
-document.getElementById('map').style.background = '#000';
+// 타일을 불러오는 동안에도 영역 밖과 같은 회색 바탕을 유지한다.
+document.getElementById('map').style.background = '#5e5e5e';
 
 window.markers = [];
 window.overlays = [];
@@ -203,9 +203,65 @@ kakao.maps.event.addListener(map, 'idle', () => {
   preserveSelectionOnNextViewChange = false;
 });
 
+// --- Event viewport bounds ---
+const restrictEventMapView = (() => {
+  const bounds = designTiles?.boundsWcong;
+  if (!bounds) return () => {};
+  const element = document.getElementById('map');
+  let correcting = false;
+  let zooming = false;
+  let frame = null;
+  const constrain = () => {
+    if (correcting || zooming) return;
+    const width = element.clientWidth;
+    const height = element.clientHeight;
+    if (!width || !height) return; // 숨겨진 WebView는 표시·크기 변경 후 처리한다.
+    const projection = map.getProjection();
+    const nw = projection.coordsFromContainerPoint(new kakao.maps.Point(0, 0)).toCoords();
+    const se = projection.coordsFromContainerPoint(new kakao.maps.Point(width, height)).toCoords();
+    const halfWidth = Math.abs(se.getX() - nw.getX()) / 2;
+    const halfHeight = Math.abs(se.getY() - nw.getY()) / 2;
+    // WCONG는 미터의 2.5배다. 여백은 최대 300m, 화면 각 축의 25%까지 허용한다.
+    const clampAxis = (value, start, end, halfSpan) => {
+      const margin = Math.min(300 * 2.5, halfSpan / 2);
+      const min = start - margin + halfSpan;
+      const max = end + margin - halfSpan;
+      return min > max ? (start + end) / 2 : Math.max(min, Math.min(max, value));
+    };
+    const center = map.getCenter().toCoords();
+    const x = clampAxis(center.getX(), bounds.west, bounds.east, halfWidth);
+    const y = clampAxis(center.getY(), bounds.south, bounds.north, halfHeight);
+    // 투영·픽셀 반올림 때문에 같은 위치를 반복 보정하지 않도록 한다.
+    if (Math.abs(x - center.getX()) < halfWidth * 3 / width &&
+        Math.abs(y - center.getY()) < halfHeight * 3 / height) return;
+    correcting = true;
+    try {
+      map.setCenter(new kakao.maps.Coords(x, y).toLatLng());
+    } finally {
+      correcting = false;
+    }
+  };
+  const schedule = () => {
+    if (correcting || zooming || frame !== null) return;
+    frame = window.requestAnimationFrame(() => { frame = null; constrain(); });
+  };
+  kakao.maps.event.addListener(map, 'bounds_changed', schedule);
+  kakao.maps.event.addListener(map, 'drag', constrain);
+  kakao.maps.event.addListener(map, 'dragend', constrain);
+  kakao.maps.event.addListener(map, 'zoom_start', () => { zooming = true; });
+  kakao.maps.event.addListener(map, 'zoom_changed', () => { zooming = false; schedule(); });
+  kakao.maps.event.addListener(map, 'idle', constrain);
+  window.addEventListener('resize', schedule);
+  if (typeof window.ResizeObserver === 'function') {
+    new window.ResizeObserver(() => { map.relayout(); schedule(); }).observe(element);
+  }
+  return constrain;
+})();
+// --- End event viewport bounds ---
 
 setTimeout(() => {
   map.relayout();
+  restrictEventMapView();
   window._mapReady = true;
   // 초기화 전 쌓인 메시지 처리
   window._pendingMessages.forEach(msg => {
