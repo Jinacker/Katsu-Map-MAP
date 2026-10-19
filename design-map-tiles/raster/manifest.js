@@ -1,5 +1,5 @@
 window.KatsuEventDesignTiles = {
-  "version": "20261019-native-4",
+  "version": "20261019-native-6",
   "tileSize": 512,
   "pixelRatio": 2,
   "minLevel": 3,

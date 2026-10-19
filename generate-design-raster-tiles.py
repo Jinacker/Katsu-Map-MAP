@@ -7,7 +7,7 @@ import math
 import multiprocessing
 from pathlib import Path
 
-from PyQt5.QtCore import QByteArray, QRectF
+from PyQt5.QtCore import QByteArray, QRectF, Qt
 from PyQt5.QtGui import QColor, QGuiApplication, QImage, QPainter
 from PyQt5.QtSvg import QSvgRenderer
 
@@ -17,7 +17,7 @@ COLUMNS, ROWS = 12, 10
 EAST, SOUTH = WEST + COLUMNS * SOURCE_SIZE, NORTH - ROWS * SOURCE_SIZE
 TILE_SIZE, PIXEL_RATIO = 512, 2
 MIN_LEVEL, MAX_LEVEL = 3, 7
-VERSION = "20261019-native-4"
+VERSION = "20261019-native-6"
 # WCONG = EPSG:5181 * 2.5; Kakao's native tile plane adds *3.2 and
 # offsets (240000, 480000). EPSG:5186 northing is EPSG:5181 + 100000.
 # Thus native = (EPSG:5186 X * 8 + 240000, Y * 8 - 320000).
@@ -44,9 +44,16 @@ def render_tile(job):
     span = world_span / NATIVE_SCALE
     units_per_pixel = span / (TILE_SIZE * PIXEL_RATIO)
     if _renderer_level != level:
-        stroke = 0.4 * span / TILE_SIZE
+        # Dense building outlines need less visual weight as the map zooms out.
+        css_stroke, color = {
+            5: (0.28, "#626b73"),
+            6: (0.20, "#7c858d"),
+            7: (0.14, "#959fa7"),
+        }.get(level, (0.4, "#232323"))
+        stroke = css_stroke * span / TILE_SIZE
         _renderers = {
             key: QSvgRenderer(QByteArray(svg.replace('stroke-width="0.4"', f'stroke-width="{stroke}"')
+                .replace('stroke="#232323"', f'stroke="{color}"')
                 .replace(' vector-effect="non-scaling-stroke"', '').encode("utf-8")))
             for key, svg in _svg_sources.items()
         }
@@ -62,10 +69,14 @@ def render_tile(job):
     painter.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
     # QtSvg does not reliably clip overflowing source paths to the root viewBox.
     # Explicitly keep all geometry inside the event's original design extent.
-    painter.setClipRect(QRectF((WEST - west) / units_per_pixel,
-                              (north - NORTH) / units_per_pixel,
-                              (EAST - WEST) / units_per_pixel,
-                              (NORTH - SOUTH) / units_per_pixel))
+    design_rect = QRectF((WEST - west) / units_per_pixel,
+                        (north - NORTH) / units_per_pixel,
+                        (EAST - WEST) / units_per_pixel,
+                        (NORTH - SOUTH) / units_per_pixel)
+    painter.setClipRect(design_rect)
+    # A continuous paper base prevents antialiased source edges from revealing
+    # black hairlines between the individually clipped SVG viewports.
+    painter.fillRect(design_rect, QColor("#fdfbf6"))
     try:
         first_column = max(0, math.floor((west - WEST) / SOURCE_SIZE))
         last_column = min(COLUMNS - 1, math.floor((east - WEST) / SOURCE_SIZE))
@@ -79,7 +90,12 @@ def render_tile(job):
                     (north - tile_north) / units_per_pixel,
                     SOURCE_SIZE / units_per_pixel, SOURCE_SIZE / units_per_pixel,
                 )
+                # Adjacent source tiles repeat crossing buildings. Clip each
+                # source viewport so those outlines are not painted twice.
+                painter.save()
+                painter.setClipRect(target, Qt.IntersectClip)
                 _renderers[(column, row)].render(painter, target)
+                painter.restore()
     finally:
         painter.end()
     target = Path(output) / str(level) / f"{x}-{y}.webp"
