@@ -204,6 +204,7 @@ kakao.maps.event.addListener(map, 'idle', () => {
 });
 
 // --- Event viewport bounds ---
+let focusedEventPinPosition = null;
 const restrictEventMapView = (() => {
   const bounds = designTiles?.boundsWcong;
   if (!bounds) return () => {};
@@ -222,15 +223,22 @@ const restrictEventMapView = (() => {
     const halfWidth = Math.abs(se.getX() - nw.getX()) / 2;
     const halfHeight = Math.abs(se.getY() - nw.getY()) / 2;
     // WCONG는 미터의 2.5배다. 여백은 최대 300m, 화면 각 축의 25%까지 허용한다.
-    const clampAxis = (value, start, end, halfSpan) => {
+    const clampAxis = (value, start, end, halfSpan, focusValue) => {
       const margin = Math.min(300 * 2.5, halfSpan / 2);
-      const min = start - margin + halfSpan;
-      const max = end + margin - halfSpan;
-      return min > max ? (start + end) / 2 : Math.max(min, Math.min(max, value));
+      let min = start - margin + halfSpan;
+      let max = end + margin - halfSpan;
+      if (min > max) min = max = (start + end) / 2;
+      // 선택한 핀을 중앙에 둘 수 있는 위치까지만 이동 경계를 확장한다.
+      if (Number.isFinite(focusValue)) {
+        min = Math.min(min, focusValue);
+        max = Math.max(max, focusValue);
+      }
+      return Math.max(min, Math.min(max, value));
     };
     const center = map.getCenter().toCoords();
-    const x = clampAxis(center.getX(), bounds.west, bounds.east, halfWidth);
-    const y = clampAxis(center.getY(), bounds.south, bounds.north, halfHeight);
+    const focus = focusedEventPinPosition?.toCoords();
+    const x = clampAxis(center.getX(), bounds.west, bounds.east, halfWidth, focus?.getX());
+    const y = clampAxis(center.getY(), bounds.south, bounds.north, halfHeight, focus?.getY());
     // 투영·픽셀 반올림 때문에 같은 위치를 반복 보정하지 않도록 한다.
     if (Math.abs(x - center.getX()) < halfWidth * 3 / width &&
         Math.abs(y - center.getY()) < halfHeight * 3 / height) return;
@@ -257,6 +265,13 @@ const restrictEventMapView = (() => {
   }
   return constrain;
 })();
+
+const focusEventMapPin = (lat, lng) => {
+  focusedEventPinPosition = new kakao.maps.LatLng(Number(lat), Number(lng));
+  preserveSelectionOnNextViewChange = true;
+  map.setCenter(focusedEventPinPosition);
+  refreshWalkingConnection?.();
+};
 // --- End event viewport bounds ---
 
 setTimeout(() => {
@@ -706,7 +721,11 @@ let walkingConnection = null;
 let walkingConnectionFrame = null;
 let restoreWalkingConnectionLayer = null;
 
-const normalizeWalkingRestaurantName = (name) => String(name ?? '').normalize('NFKC').replace(/\s+/g, '');
+const normalizeWalkingRestaurantName = (name) => {
+  const normalized = String(name ?? '').normalize('NFKC').replace(/\s+/g, '');
+  // 산책 원본의 '고래돈가스'와 가게 목록의 '고래돈까스'는 같은 짝이다.
+  return normalized === '고래돈까스' ? '고래돈가스' : normalized;
+};
 
 const updateWalkingMarkerImages = () => {
   window.walkingMarkers.forEach((marker, index) => marker.setImage(getWalkingPinImage(
@@ -903,6 +922,7 @@ document.addEventListener('keydown', (event) => {
 const openWalkingModal = (place) => {
   clearSelectedRestaurant();
   closeWalkingModal();
+  focusEventMapPin(place.lat, place.lng);
   focusBeforeWalking = document.activeElement;
   for (const [id, text] of Object.entries({
     'walking-restaurant': place.restaurant,
@@ -1017,21 +1037,9 @@ const updateMarkers = (restaurants) => {
 
     kakao.maps.event.addListener(marker, 'click', () => {
       closeWalkingModal();
-      const currentLevel = window.map.getLevel();
-      if (currentLevel >= 5) {
-        selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
-        preserveSelectionOnNextViewChange = true;
-        window.map.setLevel(4);
-        window.map.setCenter(new kakao.maps.LatLng(restaurant.lat, restaurant.lng));
-        updateMarkers(currentRestaurants);
-      } else {
-        if (!selectedRestaurantLatLng ||
-            selectedRestaurantLatLng.lat !== restaurant.lat ||
-            selectedRestaurantLatLng.lng !== restaurant.lng) {
-          selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
-          updateMarkers(currentRestaurants);
-        }
-      }
+      selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
+      focusEventMapPin(restaurant.lat, restaurant.lng);
+      updateMarkers(currentRestaurants);
       const places = WALKING_PLACES.filter((place) => normalizeWalkingRestaurantName(place.restaurant) === normalizeWalkingRestaurantName(restaurant.name));
       showWalkingConnection(places.length === 1 ? places[0] : null, 'toPlace');
       if (window.ReactNativeWebView) {
@@ -1094,6 +1102,7 @@ const handleMessage = (event) => {
       const { lat, lng, level, yOffset } = message.payload;
       if (lat != null && lng != null && window.map) {
         closeWalkingModal();
+        focusedEventPinPosition = null;
         selectedRestaurantLatLng = { lat, lng };
         preserveSelectionOnNextViewChange = true;
         if (level != null) window.map.setLevel(level);
