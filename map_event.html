@@ -676,7 +676,7 @@ const WALKING_PLACES = [
   },
   {
     "id": 18,
-    "restaurant": "고래돈가스",
+    "restaurant": "고래돈가스 고대점",
     "name": "정릉천 제기2교",
     "address": "서울 동대문구 고산자로 547 1층 조개베네\n*이 건물 앞에 제기2교가 있음",
     "description": "정릉천에는 북한산에서 내려와 정릉역까지 흐르는 구간, 그리고 고려대학교와 종암동에서 다시 시작되어 청계천으로 이어지는 구간이 있어요. 윗자락은 계곡 같은 느낌이, 아래쪽은 고가도로 아래에 있어서 옛 서울의 느낌이 물씬 납니다. 정겨운 가게들이 천변에 쭉 늘어선 것도 산책의 재미를 더해줘요.",
@@ -723,8 +723,8 @@ let restoreWalkingConnectionLayer = null;
 
 const normalizeWalkingRestaurantName = (name) => {
   const normalized = String(name ?? '').normalize('NFKC').replace(/\s+/g, '');
-  // 산책 원본의 '고래돈가스'와 가게 목록의 '고래돈까스'는 같은 짝이다.
-  return normalized === '고래돈까스' ? '고래돈가스' : normalized;
+  // 정릉천 제기2교는 고대점에 연결하며 돈가스·돈까스 표기 차이만 허용한다.
+  return normalized === '고래돈까스고대점' ? '고래돈가스고대점' : normalized;
 };
 
 const updateWalkingMarkerImages = () => {
