@@ -222,9 +222,9 @@ const restrictEventMapView = (() => {
     const se = projection.coordsFromContainerPoint(new kakao.maps.Point(width, height)).toCoords();
     const halfWidth = Math.abs(se.getX() - nw.getX()) / 2;
     const halfHeight = Math.abs(se.getY() - nw.getY()) / 2;
-    // WCONG는 미터의 2.5배다. 여백은 최대 300m, 화면 각 축의 25%까지 허용한다.
+    // WCONG는 미터의 2.5배다. 여백은 최대 900m, 화면 각 축의 40%까지 허용한다.
     const clampAxis = (value, start, end, halfSpan, focusValue) => {
-      const margin = Math.min(300 * 2.5, halfSpan / 2);
+      const margin = Math.min(900 * 2.5, halfSpan * .8);
       let min = start - margin + halfSpan;
       let max = end + margin - halfSpan;
       if (min > max) min = max = (start + end) / 2;

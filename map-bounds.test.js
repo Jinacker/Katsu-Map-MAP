@@ -71,34 +71,34 @@ function boot({ width = 400, height = 600, units = 10, bounds = { west: 0, east:
   };
 }
 
-test('지도 안의 이동은 유지하고 사방 경계에서 화면 바깥 여백을 300m 이내로 제한한다', () => {
+test('지도 안의 이동은 유지하고 사방 경계에서 화면 바깥 여백을 900m 이내로 제한한다', () => {
   const view = boot();
   view.move(6000, 4500);
   assert.deepEqual(view.center(), { x: 6000, y: 4500 });
   assert.equal(view.corrections(), 0);
   view.move(-100000, -100000);
-  assert.deepEqual(view.center(), { x: 1250, y: 2250 });
+  assert.deepEqual(view.center(), { x: 400, y: 750 });
   view.move(100000, 100000);
-  assert.deepEqual(view.center(), { x: 8750, y: 5750 });
+  assert.deepEqual(view.center(), { x: 9600, y: 7250 });
   assert.equal(view.corrections(), 2);
   assert.equal(view.frames.size, 0, '보정으로 발생한 이벤트가 추가 보정을 예약하지 않는다');
 });
 
-test('가까이 확대하면 여백을 화면의 25%까지 줄여 지도 전체가 바깥으로 사라지지 않는다', () => {
+test('가까이 확대하면 여백을 화면의 40%까지 줄여 지도 전체가 바깥으로 사라지지 않는다', () => {
   const view = boot({ width: 100, height: 200, units: 1 });
   view.move(-10000, -10000);
-  assert.deepEqual(view.center(), { x: 25, y: 50 });
+  assert.deepEqual(view.center(), { x: 10, y: 20 });
   view.move(20000, 20000);
-  assert.deepEqual(view.center(), { x: 9975, y: 7950 });
+  assert.deepEqual(view.center(), { x: 9990, y: 7980 });
 });
 
 test('화면이 지도보다 크면 해당 방향을 중앙에 고정한다', () => {
   const view = boot({ width: 2000, height: 1600 });
   view.move(-10000, 30000);
   assert.deepEqual(view.center(), { x: 5000, y: 4000 });
-  const portrait = boot({ units: 20 });
+  const portrait = boot({ units: 24 });
   portrait.move(-10000, 30000);
-  assert.deepEqual(portrait.center(), { x: 3250, y: 4000 }, '세로만 고정하고 가로는 허용한다');
+  assert.deepEqual(portrait.center(), { x: 2550, y: 4000 }, '세로만 고정하고 가로는 허용한다');
 });
 
 test('줌 애니메이션 중에는 카메라를 건드리지 않고 완료 후 새 배율로 제한한다', () => {
@@ -111,7 +111,7 @@ test('줌 애니메이션 중에는 카메라를 건드리지 않고 완료 후 
   assert.equal(view.corrections(), 0);
   view.fire('zoom_changed');
   view.flush();
-  assert.deepEqual(view.center(), { x: 3250, y: 4000 });
+  assert.deepEqual(view.center(), { x: 1750, y: 4250 });
 });
 
 test('앱의 바깥 좌표 이동 요청은 한 프레임에 한 번 보정하고 경계에서 반복하지 않는다', () => {
@@ -121,7 +121,7 @@ test('앱의 바깥 좌표 이동 요청은 한 프레임에 한 번 보정하�
   view.fire('bounds_changed');
   assert.equal(view.frames.size, 1);
   view.flush();
-  assert.deepEqual(view.center(), { x: 1250, y: 5750 });
+  assert.deepEqual(view.center(), { x: 400, y: 7250 });
   view.fire('idle');
   assert.equal(view.corrections(), 1);
 });
@@ -142,7 +142,7 @@ test('화면 회전·WebView 크기 변경 후 표시 영역을 다시 계산하
   view.move(-100000, 100000, 'no-event');
   view.windowListeners.resize();
   view.flush();
-  assert.deepEqual(view.center(), { x: 1250, y: 5750 });
+  assert.deepEqual(view.center(), { x: 400, y: 7250 });
 });
 
 test('디자인 설정이 없는 기존 초기화 경로는 경계 제어 없이 유지한다', () => {
