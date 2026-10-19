@@ -46,6 +46,12 @@ function boot({ native = true, queued = [], reducedMotion = false } = {}) {
     setMaxLevel() {}
     relayout() {}
     getLevel() { return this.level; }
+    getProjection() {
+      return {
+        containerPointFromCoords: ({ lat, lng }) => ({ x: lng * 100000, y: -lat * 100000 }),
+        coordsFromContainerPoint: ({ x, y }) => new kakao.maps.LatLng(-y / 100000, x / 100000),
+      };
+    }
     setLevel(level) { fire(this, 'zoom_start'); this.level = level; fire(this, 'zoom_changed'); }
     setCenter(position) { this.position = position; }
     panBy() {}
@@ -186,6 +192,14 @@ test('기존 식당핀은 산책 모달을 닫고 기존 SHOW_DIRECTIONS payload
 const restaurantFor = (index = 0) => ({ id: index + 1, name: places[index].restaurant, lat: 37.59 + index / 1000, lng: 127.01 + index / 1000, recommendLevel: 'best' });
 const pinSvg = (marker) => Buffer.from(marker.image.url.split(',')[1], 'base64').toString();
 const point = (position) => [position.lat, position.lng];
+// 연결점은 지도 좌표인 핀 꼬리가 아니라 둥근 몸체의 상반부 외곽에 있어야 한다.
+const assertBodyEdge = (position, anchor) => {
+  const dx = (position.lng - anchor.lng) * 100000;
+  const dy = -(position.lat - anchor.lat) * 100000;
+  assert.ok(dy < -20 && dy > -42, `핀 상반부에 붙어야 함: ${dy}`);
+  const radius = Math.hypot(dx, dy + 24.375);
+  assert.ok(radius > 12 && radius < 15, `몸체 외곽에 붙어야 함: ${radius}`);
+};
 
 test('남색 화살표가 약 0.7초에 도착해야 상대 가게핀 테두리만 노랗게 바뀐다', () => {
   const { window, send, fire, connections, frame, frames } = boot();
@@ -196,15 +210,17 @@ test('남색 화살표가 약 0.7초에 도착해야 상대 가게핀 테두리�
   const line = connections[0];
   assert.equal(line.strokeColor.toLowerCase(), '#1e3c62');
   assert.equal(line.endArrow, true);
-  assert.equal(line.strokeStyle, 'dash');
+  assert.equal(line.strokeStyle, 'shortdash');
   assert.match(pinSvg(window.markers[0]), /fill="#1E3C62"/);
   assert.doesNotMatch(pinSvg(window.markers[0]), /stroke="#FFCC33"/);
   frame(0); frame(350);
-  assert.notDeepEqual(point(line.path[1]), [restaurant.lat, restaurant.lng]);
+  const halfway = point(line.path.at(-1));
   assert.doesNotMatch(pinSvg(window.markers[0]), /stroke="#FFCC33"/);
   frame(700);
-  assert.deepEqual(point(line.path[0]), [places[0].lat, places[0].lng]);
-  assert.deepEqual(point(line.path[1]), [restaurant.lat, restaurant.lng]);
+  assert.ok(line.path.length > 2, '곡선을 여러 점으로 그려야 한다');
+  assertBodyEdge(line.path[0], places[0]);
+  assertBodyEdge(line.path.at(-1), restaurant);
+  assert.notDeepEqual(halfway, point(line.path.at(-1)), '중간 프레임 뒤에도 화살표가 진행해야 한다');
   assert.equal(frames.size, 0);
   assert.match(pinSvg(window.markers[0]), /fill="#1E3C62" stroke="#FFCC33"/);
   assert.ok(window.overlays[0].content.includes('background:rgba(255,255,255,0.85)'));
@@ -240,10 +256,10 @@ test('가게핀 클릭은 산책 방향으로 연결하고 도착 후 산책핀�
   assert.deepEqual(posts, [{ type: 'SHOW_DIRECTIONS', payload: restaurant }]);
   const line = connections[0];
   frame(0); frame(350);
-  assert.deepEqual(point(line.path[0]), [restaurant.lat, restaurant.lng]);
+  assertBodyEdge(line.path[0], restaurant);
   assert.doesNotMatch(pinSvg(window.walkingMarkers[0]), /stroke="#FFCC33"/);
   frame(700);
-  assert.deepEqual(point(line.path[1]), [places[0].lat, places[0].lng]);
+  assertBodyEdge(line.path.at(-1), places[0]);
   assert.match(pinSvg(window.walkingMarkers[0]), /fill="#B2DEE8" stroke="#FFCC33"/);
   assert.doesNotMatch(pinSvg(window.markers[0]), /stroke="#FFCC33"/);
   send({ type: 'PAN_TO', payload: { lat: restaurant.lat, lng: restaurant.lng, level: 4 } });
@@ -282,8 +298,8 @@ test('같은 핀 재선택·목록/설정 재전송·필터 변경에도 다른 
   send({ type: 'UPDATE_RESTAURANTS', payload: [{ ...restaurant }] });
   send({ type: 'UPDATE_EVENT_CONFIG', payload: { enabled: true, restaurantIds: [restaurant.id], pinMode: 'same' } });
   assert.equal(connections.length, 1);
-  assert.deepEqual(point(line.path[0]), [restaurant.lat, restaurant.lng]);
-  assert.deepEqual(point(line.path[1]), [places[0].lat, places[0].lng]);
+  assertBodyEdge(line.path[0], restaurant);
+  assertBodyEdge(line.path.at(-1), places[0]);
   assert.equal(elements['walking-modal'].hidden, true);
   assert.match(pinSvg(window.walkingMarkers[0]), /stroke="#FFCC33"/);
   send({ type: 'UPDATE_RESTAURANTS', payload: [] });
@@ -334,10 +350,10 @@ test('동작 줄이기에서는 양방향 모두 완성된 선을 표시한 직�
   const restaurant = restaurantFor();
   send({ type: 'UPDATE_RESTAURANTS', payload: [restaurant] });
   fire(window.walkingMarkers[0], 'click');
-  assert.deepEqual(point(connections[0].path[1]), [restaurant.lat, restaurant.lng]);
+  assertBodyEdge(connections[0].path.at(-1), restaurant);
   assert.match(pinSvg(window.markers[0]), /stroke="#FFCC33"/);
   fire(window.markers[0], 'click');
-  assert.deepEqual(point(connections[1].path[1]), [places[0].lat, places[0].lng]);
+  assertBodyEdge(connections[1].path.at(-1), places[0]);
   assert.match(pinSvg(window.walkingMarkers[0]), /stroke="#FFCC33"/);
   assert.equal(frames.size, 0);
 });
