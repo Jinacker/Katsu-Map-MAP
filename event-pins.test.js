@@ -20,10 +20,20 @@ test('별점별 핀과 미설정 기본 핀 및 외부 주소 차단', () => {
   assert.equal(pins.resolve(config, { id: 3, recommendLevel: 'best' }), null);
   assert.equal(pins.resolve(config, { id: 3, recommendLevel: 'top5' }), null);
 });
-test('v2와 v3의 JS 문법·선택적 메시지·기본 핀 fallback을 검증한다', () => {
-  for (const name of ['map_v2.html', 'map_v3.html']) {
+// 이벤트 디자인 핀은 이벤트 전용 지도에서만 쓴다. 일반 지도는 참여 가게도 평소 핀 그대로 표시한다.
+test('일반 지도 v2·v3은 JS 문법이 유효하고 이벤트 핀을 쓰지 않는다', () => {
+  for (const name of ['map.html', 'map_v2.html', 'map_v3.html']) {
     const html = fs.readFileSync(`${__dirname}/${name}`, 'utf8');
     for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
-    assert.match(html, /UPDATE_EVENT_CONFIG/); assert.match(html, /getEventPinImage\(restaurant, isSelected\) \|\| getMarkerPinImage/);
+    assert.doesNotMatch(html, /event-pins\.js|getEventPinImage|UPDATE_EVENT_CONFIG|isEventPin/);
   }
+  for (const name of ['map_v2.html', 'map_v3.html']) {
+    assert.match(fs.readFileSync(`${__dirname}/${name}`, 'utf8'), /image: getMarkerPinImage\(/);
+  }
+});
+test('이벤트 전용 지도는 이벤트 핀 설정을 그대로 받는다', () => {
+  const html = fs.readFileSync(`${__dirname}/map_event.html`, 'utf8');
+  assert.match(html, /event-pins\.js/);
+  assert.match(html, /UPDATE_EVENT_CONFIG/);
+  assert.match(html, /getEventPinImage\(restaurant, isSelected\) \|\| getMarkerPinImage/);
 });
