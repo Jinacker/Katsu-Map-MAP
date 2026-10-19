@@ -618,6 +618,7 @@ let walkingTargetRestaurant = null;
 let walkingTargetPlace = null;
 let walkingConnection = null;
 let walkingConnectionFrame = null;
+let restoreWalkingConnectionLayer = null;
 
 const normalizeWalkingRestaurantName = (name) => String(name ?? '').normalize('NFKC').replace(/\s+/g, '');
 
@@ -639,6 +640,8 @@ const clearWalkingConnection = () => {
   walkingConnectionFrame = null;
   if (walkingConnection) walkingConnection.setMap(null);
   walkingConnection = null;
+  restoreWalkingConnectionLayer?.();
+  restoreWalkingConnectionLayer = null;
   refreshWalkingConnection = null;
   walkingTargetRestaurant = null;
   walkingTargetPlace = null;
@@ -680,8 +683,23 @@ const showWalkingConnection = (place, direction = 'toRestaurant') => {
     strokeOpacity: 1,
     strokeStyle: 'shortdash',
     endArrow: true,
-    zIndex: 0,
+    zIndex: 1003,
   });
+  // 선과 핀은 서로 다른 패널이므로 도형 패널도 핀 패널 위로 올린다.
+  const panels = connection.getPanels?.();
+  if (panels?.graphicsLayer && panels.overlayLayer) {
+    const layer = panels.graphicsLayer;
+    const previousZIndex = layer.style.zIndex;
+    const previousPointerEvents = layer.style.pointerEvents;
+    const pinLayerZIndex = Number.parseInt(window.getComputedStyle(panels.overlayLayer).zIndex, 10) || 0;
+    const lineLayerZIndex = Number.parseInt(window.getComputedStyle(layer).zIndex, 10) || 0;
+    layer.style.zIndex = String(Math.max(pinLayerZIndex, lineLayerZIndex) + 1);
+    layer.style.pointerEvents = 'none';
+    restoreWalkingConnectionLayer = () => {
+      layer.style.zIndex = previousZIndex;
+      layer.style.pointerEvents = previousPointerEvents;
+    };
+  }
   walkingConnection = connection;
   let drawnProgress = 0;
   const setProgress = (progress) => {
@@ -704,12 +722,31 @@ const showWalkingConnection = (place, direction = 'toRestaurant') => {
     };
     const from = bodyEdge(startBody, targetBody);
     const to = bodyEdge(targetBody, startBody);
-    const tip = projection.coordsFromContainerPoint(new kakao.maps.Point(
-      from.x + (to.x - from.x) * progress,
-      from.y + (to.y - from.y) * progress,
-    ));
-    const origin = projection.coordsFromContainerPoint(new kakao.maps.Point(from.x, from.y));
-    connection.setPath([origin, tip]);
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const distance = Math.hypot(dx, dy);
+    const handle = Math.min(56, distance * .24);
+    const bend = Math.min(22, distance * .08);
+    const upward = dx >= 0 ? -1 : 1;
+    const control1 = {
+      x: from.x + (from.x - startBody.x) / 13.1 * handle - dy / Math.max(distance, 1) * bend * upward,
+      y: from.y + (from.y - startBody.y) / 13.1 * handle + dx / Math.max(distance, 1) * bend * upward,
+    };
+    // 마지막 제어점을 도착 테두리의 바깥 법선 위에 두어 화살촉이 테두리에 직각으로 들어간다.
+    const control2 = {
+      x: to.x + (to.x - targetBody.x) / 13.1 * handle,
+      y: to.y + (to.y - targetBody.y) / 13.1 * handle,
+    };
+    const segments = Math.max(1, Math.ceil(64 * progress));
+    const path = Array.from({ length: segments + 1 }, (_, index) => {
+      const t = progress * index / segments;
+      const u = 1 - t;
+      return projection.coordsFromContainerPoint(new kakao.maps.Point(
+        u ** 3 * from.x + 3 * u ** 2 * t * control1.x + 3 * u * t ** 2 * control2.x + t ** 3 * to.x,
+        u ** 3 * from.y + 3 * u ** 2 * t * control1.y + 3 * u * t ** 2 * control2.y + t ** 3 * to.y,
+      ));
+    });
+    connection.setPath(path);
   };
   // 확대·축소 때 끝점만 다시 맞추고, 애니메이션 진행도와 도착 강조는 유지한다.
   refreshWalkingConnection = () => setProgress(drawnProgress);
