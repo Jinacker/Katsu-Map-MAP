@@ -30,6 +30,35 @@ font: 14px/1.5 -apple-system, sans-serif;
 text-align: center;
 z-index: 10;
 }
+.walking-modal[hidden], .walking-gallery[hidden], .walking-gallery-controls[hidden] { display: none; }
+.walking-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px 16px; box-sizing: border-box; background: rgba(16, 30, 46, .4); font: 14px/1.7 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif; color: #21221c; }
+.walking-dialog { width: 100%; max-width: 400px; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
+.walking-dialog-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 20px; background: #fff; }
+.walking-dialog-header h2 { margin: 0; color: #1E3C62; font-size: 17px; font-weight: 800; }
+.walking-dialog button { border: 0; font: inherit; cursor: pointer; touch-action: manipulation; }
+.walking-close { flex: 0 0 40px; width: 40px; height: 40px; background: transparent; color: #1E3C62; font-size: 26px !important; line-height: 1; }
+.walking-dialog button:focus-visible { outline: 2px solid #1E3C62; outline-offset: -3px; }
+.walking-gallery { position: relative; margin: 0 20px; }
+.walking-photos { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: 10px; background: #f3f2ef; }
+.walking-photos::-webkit-scrollbar { display: none; }
+.walking-photo { flex: 0 0 100%; min-width: 0; margin: 0; scroll-snap-align: start; }
+.walking-photo img { display: block; width: 100%; height: clamp(150px, 27vh, 220px); object-fit: contain; }
+.walking-photo-error { display: flex; align-items: center; justify-content: center; height: 150px; margin: 0; font-size: 12px; color: #6b6b62; }
+.walking-gallery-controls { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; font-size: 11px; color: #6b6b62; }
+.walking-gallery-controls button { width: 32px; height: 32px; padding: 0; border-radius: 50%; background: #f3f2ef; color: #1E3C62; font-size: 18px; }
+.walking-gallery-controls button:disabled { opacity: .35; cursor: default; }
+.walking-details { padding: 16px 20px 22px; }
+.walking-route { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-bottom: 12px; word-break: keep-all; }
+.walking-restaurant { font-size: 12px; color: #6b6b62; }
+.walking-arrow { color: #B2DEE8; font-size: 22px; font-weight: 800; white-space: nowrap; }
+.walking-route h3 { flex: 1 1 120px; margin: 0; font-size: 18px; line-height: 1.45; font-weight: 800; color: #1E3C62; white-space: pre-line; }
+.walking-description { margin: 0 0 16px; font-size: 13px; line-height: 1.85; word-break: keep-all; white-space: pre-line; overflow-wrap: anywhere; }
+.walking-info { margin: 0; }
+.walking-info dt { margin-top: 12px; color: #1E3C62; font-size: 11px; font-weight: 800; }
+.walking-info dd { margin: 3px 0 0; color: #6b6b62; font-size: 12px; white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
+/* WebView 위에 겹치는 앱 헤더와 기본 높이의 가게 목록을 피해 모달을 놓는다. */
+.native-map .walking-modal { align-items: flex-start; padding-top: 104px; padding-bottom: 160px; }
+@media (max-height: 500px) { .native-map .walking-modal { padding-top: 84px; padding-bottom: 100px; } }
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
@@ -37,10 +66,32 @@ z-index: 10;
 <body>
 <div id="map"></div>
 <div id="error"></div>
+<div id="walking-modal" class="walking-modal" role="dialog" aria-modal="true" aria-labelledby="walking-dialog-title" hidden>
+  <article class="walking-dialog">
+    <header class="walking-dialog-header">
+      <h2 id="walking-dialog-title">추천 산책 코스</h2>
+      <button id="walking-close" class="walking-close" type="button" aria-label="산책 코스 닫기">×</button>
+    </header>
+    <div id="walking-gallery" class="walking-gallery">
+      <div id="walking-photos" class="walking-photos" aria-label="산책 장소 사진"></div>
+      <div id="walking-gallery-controls" class="walking-gallery-controls">
+        <button id="walking-photo-prev" type="button" aria-label="이전 사진">‹</button>
+        <span id="walking-photo-count" aria-live="polite"></span>
+        <button id="walking-photo-next" type="button" aria-label="다음 사진">›</button>
+      </div>
+    </div>
+    <div class="walking-details">
+      <div class="walking-route"><span id="walking-restaurant" class="walking-restaurant"></span><span class="walking-arrow" aria-hidden="true">··· →</span><h3 id="walking-name"></h3></div>
+      <p id="walking-description" class="walking-description"></p>
+      <dl class="walking-info"><dt>주소</dt><dd id="walking-address"></dd><dt>추천 카페</dt><dd id="walking-cafes"></dd></dl>
+    </div>
+  </article>
+</div>
 
 <script>
 (function() {
 const API_KEY = window.KAKAO_MAP_JS_KEY;
+if (window.ReactNativeWebView) document.body.classList.add('native-map');
 
 if (!API_KEY) {
   document.getElementById('error').style.display = 'flex';
@@ -95,6 +146,9 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 window.map = map;
 window.markers = [];
 window.overlays = [];
+// 식당 필터·목록 갱신과 별개로 유지하는 산책 장소 핀과 라벨.
+window.walkingMarkers = [];
+window.walkingOverlays = [];
 let preserveSelectionOnNextViewChange = false;
 
 map.setMaxLevel(13);
@@ -102,6 +156,7 @@ map.setMaxLevel(13);
 kakao.maps.event.addListener(map, 'zoom_changed', () => {
   const show = map.getLevel() < 7;
   window.overlays.forEach(o => o.setMap(show ? map : null));
+  window.walkingOverlays.forEach(o => o.setMap(show ? map : null));
 });
 
 kakao.maps.event.addListener(map, 'idle', () => {
@@ -246,6 +301,395 @@ const getMarkerPinImage = (level, isHunterPick = false, isSelected = false, isEv
   return markerImage;
 };
 
+// --- 성북천 추천 산책 코스 ---
+// 엑셀 번호로 사진을 매칭했다. 사진이 없는 11·17번도 장소 정보는 표시한다.
+const WALKING_PLACES = [
+  {
+    "id": 1,
+    "restaurant": "금왕돈까스 본점",
+    "name": "길상사",
+    "address": "서울 성북구 선잠로5길 68 길상사(조계종)",
+    "description": "성북동의 클래식한 코스, 금왕돈까스와 길상사의 조합입니다. 절마다 특색과 매력이 다른데 길상사에는 특유의 여유로움이 있어요. 가을 산책하기 좋은 이곳에서 천천히 숨을 내쉬어 보세요.",
+    "cafes": [
+      "무카바"
+    ],
+    "lat": 37.59910978,
+    "lng": 126.99465204,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/01-1.jpg",
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/01-2.jpg"
+    ]
+  },
+  {
+    "id": 2,
+    "restaurant": "오박사네왕돈까스 본점",
+    "name": "성북역사문화공원",
+    "address": "서울 성북구 성북동 118-2",
+    "description": "한양도성 성곽길이 시작되는 공원입니다. 동대문에서부터 이어지는 한양도성은 뜨문뜨문 끊겨 있다가, 이 지점부터 다시 시작돼요. 와룡공원으로 올라가는 길, 한양도성을 따라 천천히 걷다 보면 성북동 전경이 아름답게 펼쳐집니다. 감나무도 많이 보여요.",
+    "cafes": [
+      "일상"
+    ],
+    "lat": 37.59249966,
+    "lng": 126.99778953,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/02-1.jpg"
+    ]
+  },
+  {
+    "id": 3,
+    "restaurant": "서울왕돈까스 본점",
+    "name": "혜화로-혜화동로터리",
+    "address": "서울 종로구 창경궁로35길 1\n*로터리에 있는 주유소 주소",
+    "description": "성북동에서 다른 동네로 건너가는 길 중 이곳을 가장 좋아해요. 혜화로를 따라 쭉 내려가서 혜화동로터리로 가는 길. 서울과고, 경신중고, 혜화초 등 학교 앞길을 따라 내려가다 보면 어느덧 분위기가 사뭇 달라진 종로구 풍경이 주변을 감쌉니다. 은행나무가 특히 예쁘니 가을에 꼭 다녀오세요.",
+    "cafes": [
+      "아이코"
+    ],
+    "lat": 37.58606542,
+    "lng": 127.00107864,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/03-1.jpg"
+    ]
+  },
+  {
+    "id": 4,
+    "restaurant": "호푸집",
+    "name": "방우산장",
+    "address": "서울 성북구 성북로 68\n*방우산장 앞 건물 주소",
+    "description": "시인 조지훈을 기념하는 건축물 방우산장은 동네 주민들이 편안하게 쉬어 가는 곳이에요. 가운데 우뚝 솟은 매화나무는 계절의 변화를 느끼게 해주는, 우리 동네 수호 나무 같은 존재이기도 하죠. 아이스크림 한 컵 들고 방우산장 의자에 앉아 여유를 즐겨보세요.",
+    "cafes": [
+      "녹기전에 낱점",
+      "늘"
+    ],
+    "lat": 37.59352636,
+    "lng": 127.00139987,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/04-1.jpg"
+    ]
+  },
+  {
+    "id": 5,
+    "restaurant": "카츠벨",
+    "name": "경신중고 앞 주차장",
+    "address": "서울 성북구 창경궁로35다길 114\n건물 왼쪽 주차장",
+    "description": "북한산 보현봉 아래 펼쳐진 성북동 전경을 감상할 수 있는 숨겨진 전망대입니다. 한양도성 성곽길의 흔적을 좇아 경신중고 앞길을 따라가면 만날 수 있어요. 높게 솟은 길을 걷다 보면 산의 능선을 타는 듯한 느낌이 들기도 합니다.",
+    "cafes": [
+      "필터",
+      "해로커피"
+    ],
+    "lat": 37.59250842,
+    "lng": 127.00079012,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/05-1.jpg"
+    ]
+  },
+  {
+    "id": 6,
+    "restaurant": "시올돈 성북직영점",
+    "name": "한양도성 전시안내센터",
+    "address": "서울 종로구 창경궁로35길 63",
+    "description": "혼자만의 사색이 필요할 때 찾고는 하는 작은 아지트입니다. 한양도성을 소개하는 안내센터의 전시도 좋고, 무엇보다 잘 가꾸어 둔 정원이 정말 좋아요. 도시의 소음에서 벗어나 고요한 산책과 휴식을 즐길 수 있는 곳입니다.",
+    "cafes": [
+      "카머",
+      "카페잇트"
+    ],
+    "lat": 37.58860934,
+    "lng": 127.00301231,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/06-1.jpg",
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/06-2.jpg"
+    ]
+  },
+  {
+    "id": 7,
+    "restaurant": "온달왕돈까스치킨호프",
+    "name": "아리랑고개",
+    "address": "서울 성북구 정릉동 109-100",
+    "description": "온달왕에서 돈가스로 배를 든든히 채웠다면 얼른 소화시켜 보시죠. 성북천 아래로 내려가는 것도 좋지만, 요즘같이 계절이 변하는 시기에는 아리랑고개를 종종 산책해요. 완만하게 긴 언덕이라 숨이 차다가도, 길가 양옆의 가로수 풍경을 보다 보면 어느새 정릉역에 도착합니다.",
+    "cafes": [
+      "카페 시와"
+    ],
+    "lat": 37.60143123,
+    "lng": 127.01439613,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/07-1.jpg"
+    ]
+  },
+  {
+    "id": 8,
+    "restaurant": "카츠노이에 성신여대본점",
+    "name": "성북천 바람마당",
+    "address": "서울 성북구 삼선동5가 309-2",
+    "description": "얼마 전 재정비한 성북구청 뒤, 성북천에 조성된 바람마당. 동네에서 하는 축제의 주요 무대가 되기도 하고 평소에도 동네 주민들의 아늑한 쉼터가 됩니다. 든든하게 밥을 먹고 바람마당 계단에 앉아 있는 것만큼 편안한 휴식이 없는 것 같아요.",
+    "cafes": [
+      "일상의굴레"
+    ],
+    "lat": 37.58976174,
+    "lng": 127.01732732,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/08-1.jpg"
+    ]
+  },
+  {
+    "id": 9,
+    "restaurant": "엘리카츠",
+    "name": "성신여대 벚꽃길",
+    "address": "서울 성북구 동소문로20길 43\n*에서 시작되는 길거리 (성신여대 정문 방면)",
+    "description": "성북천 하늘다리에서 성신여대 정문까지 이어지는 벚꽃길을 참 좋아합니다. 계절의 변화를 관찰할 수 있는 좋은 스팟이기도 해요. 1차선 도로 양쪽으로 빽빽하게 들어선 가로수, 그늘이 많아 햇빛을 피하기에도 좋고 숲길에 들어온 것 같기도 합니다.",
+    "cafes": [
+      "무등도원"
+    ],
+    "lat": 37.59065377,
+    "lng": 127.01702521,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/09-1.jpg"
+    ]
+  },
+  {
+    "id": 10,
+    "restaurant": "톤제",
+    "name": "성북천 벤치쉼터",
+    "address": "서울 성북구 고려대로7길 74 1층\n*컴포즈커피 건너편 성북천변",
+    "description": "성북천을 즐기는 좋은 방법 중 하나는 성북천 방향으로 나 있는 바테이블, 벤치에서 쉬어 가는 것입니다. 날씨가 좋은 계절에는 금세 만석이 될 정도로 인기가 많아요. 커피 한 잔, 혹은 맥주 한 캔 들고 멍하니 성북천을 바라보세요.",
+    "cafes": [
+      "무아"
+    ],
+    "lat": 37.58881784,
+    "lng": 127.01917378,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/10-1.jpg"
+    ]
+  },
+  {
+    "id": 11,
+    "restaurant": "곰돌이돈까스",
+    "name": "보문사-동망봉",
+    "address": "서울 성북구 보문사길 20",
+    "description": "보문역에서 나와 성북천으로 내려가기에 바빴던 당신에게 보문사 산책을 추천합니다. 창신역으로 넘어가는 길에는 동망봉터널이 있는데요, 이 위에 보문사와 동망봉이 있어요. \"동네에 이런 곳이 있었어?\" 싶은, 재미난 탐험을 할 수 있는 코스입니다.",
+    "cafes": [
+      "크랙커피"
+    ],
+    "lat": 37.58492213,
+    "lng": 127.01617205,
+    "images": []
+  },
+  {
+    "id": 12,
+    "restaurant": "묘한경양식당",
+    "name": "숭인근린공원",
+    "address": "서울 종로구 숭인동 58-149",
+    "description": "종로와 성북의 경계에 있는 숨겨진 산책 장소, 숭인근린공원입니다. 창신역에서 채석장을 따라 올라갈 수도 있고 보문동에서 아파트 사이 언덕길과 계단을 찾아 올라갈 수도 있어요. 서울 시내가 훤히 내려다보이는 전망대이자, 가벼운 운동을 즐길 수 있는 시설이 갖춰진 훌륭한 스포츠 공원이기도 합니다.",
+    "cafes": [
+      "마르코웤스 보문"
+    ],
+    "lat": 37.57634353,
+    "lng": 127.01779695,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/12-1.jpg"
+    ]
+  },
+  {
+    "id": 13,
+    "restaurant": "밥이랑돈까스랑",
+    "name": "대광초등학교 앞",
+    "address": "서울 성북구 안암로 5 대광초등학교",
+    "description": "평일 점심에 이 길을 걷는 것을 좋아해요. 대광초, 대광중, 대광고 학생들이 재잘재잘 떠드는 소리를 들을 수 있거든요. 성북천을 따라 걷는 산책길에서 가장 활발한 분위기를 느낄 수 있는 곳입니다. 대광초 앞은 벚꽃길도 예쁜데 아직 사람들에게 많이 안 알려져 있어요.",
+    "cafes": [
+      "스프링스톤"
+    ],
+    "lat": 37.57915104,
+    "lng": 127.02344586,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/13-1.jpg"
+    ]
+  },
+  {
+    "id": 14,
+    "restaurant": "동경돈까스",
+    "name": "성북천과 청계천이 만나는 지점\n(성북천 성북천교)",
+    "address": "서울 동대문구 청계천로 447\n*이 건물 앞에 성북천교가 있음",
+    "description": "동네와 동네가 만나는 지점을 좋아합니다. 성북천을 따라 내려오면 성북구에서 동대문구로 바뀌는 지점이 한 번, 성북천이 끝나고 청계천으로 합류하는 지점이 한 번 나와요. 두 지점을 산책하며 동네의 분위기가 어떻게 바뀌는지 관찰해 보세요.",
+    "cafes": [
+      "필터",
+      "아후아",
+      "로스토"
+    ],
+    "lat": 37.57111925,
+    "lng": 127.02703372,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/14-1.jpg"
+    ]
+  },
+  {
+    "id": 15,
+    "restaurant": "이세돈가스 고려대점",
+    "name": "개운사",
+    "address": "서울 성북구 개운사길 73",
+    "description": "성북에는 오래된 역사를 지닌 절이 많아요. 무려 1396년에 건립된 것으로 알려진 개운사는 고려대 문과캠과 이공대캠 사이에 숨어 있습니다. 고려시대에 만들어진 불상, 암벽에 조각된 보살상 등 재미난 역사 탐방을 할 수 있는 곳이기도 합니다.",
+    "cafes": [
+      "베브릿지 고대점"
+    ],
+    "lat": 37.58998799,
+    "lng": 127.02802833,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/15-1.jpg",
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/15-2.jpg"
+    ]
+  },
+  {
+    "id": 16,
+    "restaurant": "돈까스 발전소",
+    "name": "고려대학교 안암병원 입구",
+    "address": "서울 성북구 개운사1길 29\n*이 건물 바로 왼쪽",
+    "description": "안암에서 고려대학교 병원 부지로 들어가는 입구, 비탈진 경사로에 정갈하게 은행나무가 심어져 있어요. 안암에서 보문으로 넘어갈 때 보통 고려대학교 병원 앞 큰 길을 따라 지나가곤 했는데, 이 길을 발견하고 고요한 산책을 할 수 있게 되었습니다.",
+    "cafes": [
+      "디어브레드 고대점"
+    ],
+    "lat": 37.58732513,
+    "lng": 127.02870677,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/16-1.jpg"
+    ]
+  },
+  {
+    "id": 17,
+    "restaurant": "시키카츠 고대점",
+    "name": "고려대학교 문과캠퍼스",
+    "address": "서울 성북구 안암로 145",
+    "description": "안암동 면적의 대부분을 차지하고 있는 고려대학교. 안암역에서 고려대역 사이, 벚나무를 비롯해 예쁜 나무로 가득한 문과 캠퍼스를 산책해 보세요. 무엇보다 평지라서 좋습니다. 청춘의 분위기도 느낄 수 있고요.",
+    "cafes": [
+      "재즈피넛"
+    ],
+    "lat": 37.58870974,
+    "lng": 127.03197743,
+    "images": []
+  },
+  {
+    "id": 18,
+    "restaurant": "고래돈가스",
+    "name": "정릉천 제기2교",
+    "address": "서울 동대문구 고산자로 547 1층 조개베네\n*이 건물 앞에 제기2교가 있음",
+    "description": "정릉천에는 북한산에서 내려와 정릉역까지 흐르는 구간, 그리고 고려대학교와 종암동에서 다시 시작되어 청계천으로 이어지는 구간이 있어요. 윗자락은 계곡 같은 느낌이, 아래쪽은 고가도로 아래에 있어서 옛 서울의 느낌이 물씬 납니다. 정겨운 가게들이 천변에 쭉 늘어선 것도 산책의 재미를 더해줘요.",
+    "cafes": [
+      "래디컬브루잉클럽",
+      "어센딩커비웨이브"
+    ],
+    "lat": 37.5882569,
+    "lng": 127.03694852,
+    "images": [
+      "https://storage.googleapis.com/katsu-map-images/launch-banners/events/walks-20261019-a8f4c2/18-1.jpg"
+    ]
+  }
+];
+
+const walkingPinImages = {};
+const getWalkingPinImage = (selected = false) => {
+  if (walkingPinImages[selected]) return walkingPinImages[selected];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="#B2DEE8" stroke="${selected ? '#1E3C62' : DEFAULT_PIN_STROKE}" stroke-width="${selected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH}" d="${OUTER_PIN}"/><g fill="none" stroke="#1E3C62" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"><circle cx="133" cy="64" r="11" fill="#1E3C62" stroke="none"/><path d="m112 97 17-13 15 26 22 8m-37-34-10 44 23 22 6 25m-29-47-12 25-19 18m24-74-16 22"/></g></svg>`;
+  const url = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
+  walkingPinImages[selected] = new kakao.maps.MarkerImage(url, new kakao.maps.Size(36, 52), { offset: new kakao.maps.Point(18, 47) });
+  return walkingPinImages[selected];
+};
+
+const walkingModal = document.getElementById('walking-modal');
+const walkingClose = document.getElementById('walking-close');
+const walkingPhotos = document.getElementById('walking-photos');
+const walkingPrev = document.getElementById('walking-photo-prev');
+const walkingNext = document.getElementById('walking-photo-next');
+let selectedWalkingMarker = null;
+let walkingPhotoCount = 0;
+let focusBeforeWalking = null;
+
+const closeWalkingModal = () => {
+  if (walkingModal.hidden) return;
+  walkingModal.hidden = true;
+  document.getElementById('map').removeAttribute('aria-hidden');
+  if (selectedWalkingMarker) selectedWalkingMarker.setImage(getWalkingPinImage());
+  selectedWalkingMarker = null;
+  focusBeforeWalking?.focus?.();
+  focusBeforeWalking = null;
+};
+
+const updateWalkingPhotoControls = () => {
+  const index = walkingPhotos.clientWidth ? Math.round(walkingPhotos.scrollLeft / walkingPhotos.clientWidth) : 0;
+  document.getElementById('walking-photo-count').textContent = `${index + 1} / ${walkingPhotoCount}`;
+  walkingPrev.disabled = index === 0;
+  walkingNext.disabled = index >= walkingPhotoCount - 1;
+};
+walkingPhotos.addEventListener('scroll', updateWalkingPhotoControls, { passive: true });
+walkingPrev.addEventListener('click', () => walkingPhotos.scrollBy({ left: -walkingPhotos.clientWidth, behavior: 'smooth' }));
+walkingNext.addEventListener('click', () => walkingPhotos.scrollBy({ left: walkingPhotos.clientWidth, behavior: 'smooth' }));
+walkingClose.addEventListener('click', closeWalkingModal);
+walkingModal.addEventListener('click', (event) => { if (event.target === walkingModal) closeWalkingModal(); });
+document.addEventListener('keydown', (event) => {
+  if (walkingModal.hidden) return;
+  if (event.key === 'Escape') { event.preventDefault(); closeWalkingModal(); }
+  if (event.key === 'Tab') {
+    const buttons = Array.from(walkingModal.querySelectorAll('button')).filter((button) => !button.disabled && button.offsetParent !== null);
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  }
+});
+
+const openWalkingModal = (place, marker) => {
+  clearSelectedRestaurant();
+  closeWalkingModal();
+  selectedWalkingMarker = marker;
+  marker.setImage(getWalkingPinImage(true));
+  focusBeforeWalking = document.activeElement;
+  for (const [id, text] of Object.entries({
+    'walking-restaurant': place.restaurant,
+    'walking-name': place.name,
+    'walking-description': place.description,
+    'walking-address': place.address,
+    'walking-cafes': place.cafes.join(', '),
+  })) document.getElementById(id).textContent = text;
+
+  walkingPhotos.replaceChildren();
+  walkingPhotoCount = place.images.length;
+  document.getElementById('walking-gallery').hidden = walkingPhotoCount === 0;
+  document.getElementById('walking-gallery-controls').hidden = walkingPhotoCount <= 1;
+  place.images.forEach((url, index) => {
+    const figure = document.createElement('figure');
+    figure.className = 'walking-photo';
+    const image = document.createElement('img');
+    image.alt = `${place.name} 사진 ${index + 1}`;
+    image.loading = index === 0 ? 'eager' : 'lazy';
+    image.src = url;
+    image.addEventListener('error', () => {
+      const message = document.createElement('p');
+      message.className = 'walking-photo-error';
+      message.textContent = '사진을 불러오지 못했어요.';
+      figure.replaceChildren(message);
+    }, { once: true });
+    figure.appendChild(image);
+    walkingPhotos.appendChild(figure);
+  });
+  walkingModal.hidden = false;
+  walkingPhotos.scrollLeft = 0;
+  walkingModal.querySelector('.walking-dialog').scrollTop = 0;
+  updateWalkingPhotoControls();
+  document.getElementById('map').setAttribute('aria-hidden', 'true');
+  walkingClose.focus({ preventScroll: true });
+};
+
+const createWalkingMarkers = () => {
+  WALKING_PLACES.forEach((place) => {
+    const position = new kakao.maps.LatLng(place.lat, place.lng);
+    const marker = new kakao.maps.Marker({ map, position, image: getWalkingPinImage(), title: `산책 · ${place.name}`, zIndex: 5 });
+    kakao.maps.event.addListener(marker, 'click', () => openWalkingModal(place, marker));
+    const overlay = new kakao.maps.CustomOverlay({
+      position,
+      content: `<div style="margin-top:-4px;background:rgba(255,255,255,.9);padding:2px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#1E3C62;white-space:nowrap;box-shadow:0 1px 3px #0002;pointer-events:none">${escapeHtml(place.name.split('\n')[0])}</div>`,
+      xAnchor: 0.5, yAnchor: 0, zIndex: 5,
+    });
+    overlay.setMap(map.getLevel() < 7 ? map : null);
+    window.walkingMarkers.push(marker);
+    window.walkingOverlays.push(overlay);
+  });
+};
+
 // --- 마커 업데이트 ---
 let currentRestaurants = [];
 let currentEventPinConfig = null;
@@ -300,6 +744,7 @@ const updateMarkers = (restaurants) => {
     });
 
     kakao.maps.event.addListener(marker, 'click', () => {
+      closeWalkingModal();
       const currentLevel = window.map.getLevel();
       if (currentLevel >= 5) {
         selectedRestaurantLatLng = { lat: restaurant.lat, lng: restaurant.lng };
@@ -338,6 +783,8 @@ const updateMarkers = (restaurants) => {
 
   window.markers.forEach(m => m.setMap(window.map));
 };
+
+createWalkingMarkers();
 
 // --- WebView 메시지 핸들러 ---
 const handleMessage = (event) => {
