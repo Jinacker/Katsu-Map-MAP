@@ -154,18 +154,25 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 
 window.map = map;
 
-// 제공된 QGIS 공간정보를 실제 좌표에 맞춰 바닥 지도 위·핀 아래에 표시한다.
-// 이미지를 읽지 못하면 레이어를 추가하지 않아 기존 카카오 지도를 유지한다.
+// 축소 상태는 전체 미리보기, 확대 상태는 원본 공간정보의 SVG 타일을 표시한다.
+// 타일은 화면에 보이는 구역만 유지하며 모든 디자인 레이어는 핀 아래에 둔다.
 if (typeof kakao.maps.AbstractOverlay === 'function') {
   const designMap = {
     width: 3072,
     height: 2560,
+    columns: 12,
+    rows: 10,
     northWest: [37.6098836511, 126.9852767468],
     northEast: [37.6098718179, 127.0548610957],
     southWest: [37.5637528190, 126.9852858302],
   };
   function EventDesignMap(image) {
-    this.node = image;
+    this.node = document.createElement('div');
+    this.node.setAttribute('aria-hidden', 'true');
+    this.node.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:0;pointer-events:none;';
+    this.node.appendChild(image);
+    this.overview = image;
+    this.tiles = new Map();
     this.northWest = new kakao.maps.LatLng(...designMap.northWest);
     this.northEast = new kakao.maps.LatLng(...designMap.northEast);
     this.southWest = new kakao.maps.LatLng(...designMap.southWest);
@@ -181,10 +188,75 @@ if (typeof kakao.maps.AbstractOverlay === 'function') {
     const northWest = projection.pointFromCoords(this.northWest);
     const northEast = projection.pointFromCoords(this.northEast);
     const southWest = projection.pointFromCoords(this.southWest);
-    // 세 모서리를 기준으로 크기·회전을 함께 맞춘다. 지도 이동·줌은 SDK가 draw를 호출한다.
-    this.node.style.transform = `matrix(${(northEast.x - northWest.x) / designMap.width},${(northEast.y - northWest.y) / designMap.width},${(southWest.x - northWest.x) / designMap.height},${(southWest.y - northWest.y) / designMap.height},${northWest.x},${northWest.y})`;
+    const across = { x: northEast.x - northWest.x, y: northEast.y - northWest.y };
+    const down = { x: southWest.x - northWest.x, y: southWest.y - northWest.y };
+    // 타일 로딩 중이거나 실패한 구역에는 기존 전체 이미지를 배경으로 남긴다.
+    this.overview.style.transform = `matrix(${across.x / designMap.width},${across.y / designMap.width},${down.x / designMap.height},${down.y / designMap.height},${northWest.x},${northWest.y})`;
+    const screenWidth = Math.hypot(across.x, across.y);
+    const useVectors = screenWidth * (window.devicePixelRatio || 1) > designMap.width;
+    if (!useVectors) {
+      this.tiles.forEach(tile => tile.remove());
+      this.tiles.clear();
+      return;
+    }
+
+    const x = { x: across.x / designMap.columns, y: across.y / designMap.columns };
+    const y = { x: down.x / designMap.rows, y: down.y / designMap.rows };
+    const width = Math.hypot(x.x, x.y);
+    const height = Math.hypot(y.x, y.y);
+    const determinant = x.x * y.y - x.y * y.x;
+    if (!width || !height || !determinant) return;
+
+    // 가시 영역을 타일 좌표로 역변환해 현재 화면에 필요한 타일만 불러온다.
+    const bounds = map.getBounds();
+    const viewNE = projection.pointFromCoords(bounds.getNorthEast());
+    const viewSW = projection.pointFromCoords(bounds.getSouthWest());
+    const corners = [
+      [viewSW.x, viewNE.y], [viewNE.x, viewNE.y],
+      [viewSW.x, viewSW.y], [viewNE.x, viewSW.y],
+    ].map(([px, py]) => {
+      const dx = px - northWest.x;
+      const dy = py - northWest.y;
+      return { column: (dx * y.y - dy * y.x) / determinant, row: (x.x * dy - x.y * dx) / determinant };
+    });
+    const firstColumn = Math.max(0, Math.floor(Math.min(...corners.map(p => p.column))));
+    const lastColumn = Math.min(designMap.columns - 1, Math.floor(Math.max(...corners.map(p => p.column))));
+    const firstRow = Math.max(0, Math.floor(Math.min(...corners.map(p => p.row))));
+    const lastRow = Math.min(designMap.rows - 1, Math.floor(Math.max(...corners.map(p => p.row))));
+    const visible = new Set();
+    for (let row = firstRow; row <= lastRow; row++) {
+      for (let column = firstColumn; column <= lastColumn; column++) {
+        const key = `${column}-${row}`;
+        visible.add(key);
+        let tile = this.tiles.get(key);
+        if (!tile) {
+          tile = document.createElement('img');
+          tile.alt = '';
+          tile.draggable = false;
+          tile.decoding = 'async';
+          tile.style.cssText = 'position:absolute;left:0;top:0;max-width:none;transform-origin:0 0;z-index:1;pointer-events:none;visibility:hidden;';
+          tile.onload = () => { tile.style.visibility = 'visible'; };
+          tile.onerror = () => { tile.style.visibility = 'hidden'; };
+          tile.src = `/design-map-tiles/${key}.svg?v=20261019`;
+          this.tiles.set(key, tile);
+          this.node.appendChild(tile);
+        }
+        // SVG 자체를 현재 화면 크기로 그린다. 낮은 해상도로 그린 뒤 확대하지 않는다.
+        tile.style.width = `${width}px`;
+        tile.style.height = `${height}px`;
+        tile.style.transform = `matrix(${x.x / width},${x.y / width},${y.x / height},${y.y / height},${northWest.x + column * x.x + row * y.x},${northWest.y + column * x.y + row * y.y})`;
+      }
+    }
+    this.tiles.forEach((tile, key) => {
+      if (!visible.has(key)) {
+        tile.remove();
+        this.tiles.delete(key);
+      }
+    });
   };
   EventDesignMap.prototype.onRemove = function() {
+    this.tiles.forEach(tile => tile.remove());
+    this.tiles.clear();
     if (this.node.parentNode) this.node.parentNode.removeChild(this.node);
   };
   const designImage = document.createElement('img');
@@ -195,11 +267,11 @@ if (typeof kakao.maps.AbstractOverlay === 'function') {
   designImage.decoding = 'async';
   designImage.setAttribute('aria-hidden', 'true');
   designImage.style.cssText = `position:absolute;left:0;top:0;width:${designMap.width}px;height:${designMap.height}px;max-width:none;transform-origin:0 0;z-index:0;pointer-events:none;user-select:none;-webkit-user-drag:none;`;
-  designImage.onload = () => {
-    const layer = new EventDesignMap(designImage);
-    layer.setMap(map);
-  };
+  designImage.style.visibility = 'hidden';
+  designImage.onload = () => { designImage.style.visibility = 'visible'; };
   designImage.src = '/seongbukcheon-design-map.webp';
+  const layer = new EventDesignMap(designImage);
+  layer.setMap(map);
 }
 
 window.markers = [];
