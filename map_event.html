@@ -158,6 +158,7 @@ window.overlays = [];
 window.walkingMarkers = [];
 window.walkingOverlays = [];
 let preserveSelectionOnNextViewChange = false;
+let refreshWalkingConnection = null;
 
 map.setMaxLevel(13);
 
@@ -165,6 +166,7 @@ kakao.maps.event.addListener(map, 'zoom_changed', () => {
   const show = map.getLevel() < 7;
   window.overlays.forEach(o => o.setMap(show ? map : null));
   window.walkingOverlays.forEach(o => o.setMap(show ? map : null));
+  refreshWalkingConnection?.();
 });
 
 kakao.maps.event.addListener(map, 'idle', () => {
@@ -637,6 +639,7 @@ const clearWalkingConnection = () => {
   walkingConnectionFrame = null;
   if (walkingConnection) walkingConnection.setMap(null);
   walkingConnection = null;
+  refreshWalkingConnection = null;
   walkingTargetRestaurant = null;
   walkingTargetPlace = null;
   selectedWalkingMarker = null;
@@ -668,18 +671,49 @@ const showWalkingConnection = (place, direction = 'toRestaurant') => {
   const targetLat = direction === 'toRestaurant' ? Number(restaurant.lat) : place.lat;
   const targetLng = direction === 'toRestaurant' ? Number(restaurant.lng) : place.lng;
   const start = new kakao.maps.LatLng(startLat, startLng);
-  const end = new kakao.maps.LatLng(targetLat, targetLng);
+  const target = new kakao.maps.LatLng(targetLat, targetLng);
   const connection = new kakao.maps.Polyline({
     map,
     path: [start, start],
-    strokeWeight: 4,
+    strokeWeight: 3,
     strokeColor: '#1E3C62',
     strokeOpacity: 1,
-    strokeStyle: 'dash',
+    strokeStyle: 'shortdash',
     endArrow: true,
     zIndex: 0,
   });
   walkingConnection = connection;
+  let drawnProgress = 0;
+  const setProgress = (progress) => {
+    if (walkingConnection !== connection) return;
+    drawnProgress = progress;
+    const projection = map.getProjection();
+    const startAnchor = projection.containerPointFromCoords(start);
+    const targetAnchor = projection.containerPointFromCoords(target);
+    // 36×52 이미지·(18,47) 앵커 기준 둥근 몸체 중심. 아래 꼬리는 연결점에서 제외한다.
+    const startBody = { x: startAnchor.x, y: startAnchor.y - 24.375 };
+    const targetBody = { x: targetAnchor.x, y: targetAnchor.y - 24.375 };
+    const bodyEdge = (body, toward) => {
+      const dx = toward.x - body.x;
+      const dy = Math.min(toward.y - body.y, 0);
+      const distance = Math.hypot(dx, dy);
+      const radius = 13.1;
+      return distance > 0
+        ? { x: body.x + dx / distance * radius, y: body.y + dy / distance * radius }
+        : { x: body.x + radius, y: body.y };
+    };
+    const from = bodyEdge(startBody, targetBody);
+    const to = bodyEdge(targetBody, startBody);
+    const tip = projection.coordsFromContainerPoint(new kakao.maps.Point(
+      from.x + (to.x - from.x) * progress,
+      from.y + (to.y - from.y) * progress,
+    ));
+    const origin = projection.coordsFromContainerPoint(new kakao.maps.Point(from.x, from.y));
+    connection.setPath([origin, tip]);
+  };
+  // 확대·축소 때 끝점만 다시 맞추고, 애니메이션 진행도와 도착 강조는 유지한다.
+  refreshWalkingConnection = () => setProgress(drawnProgress);
+  setProgress(0);
   const arrive = () => {
     if (walkingConnection !== connection) return;
     walkingConnectionFrame = null;
@@ -689,7 +723,7 @@ const showWalkingConnection = (place, direction = 'toRestaurant') => {
     updateMarkers(currentRestaurants);
   };
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
-    connection.setPath([start, end]);
+    setProgress(1);
     arrive();
     return;
   }
@@ -702,12 +736,7 @@ const showWalkingConnection = (place, direction = 'toRestaurant') => {
     if (startedAt === null) startedAt = now;
     const step = Math.min(20, Math.floor((now - startedAt) / 35) + 1);
     if (step !== previousStep) {
-      const progress = step / 20;
-      const tip = step === 20 ? end : new kakao.maps.LatLng(
-        startLat + (targetLat - startLat) * progress,
-        startLng + (targetLng - startLng) * progress,
-      );
-      connection.setPath([start, tip]);
+      setProgress(step / 20);
       previousStep = step;
     }
     if (step < 20) walkingConnectionFrame = window.requestAnimationFrame(draw);
