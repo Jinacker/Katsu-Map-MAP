@@ -35,28 +35,33 @@ z-index: 10;
 .walking-dialog { width: 100%; max-width: 400px; max-height: 50vh; max-height: 50dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
 .walking-dialog-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 20px; background: #fff; }
 .walking-dialog-header h2 { flex: 1; min-width: 0; margin: 0; color: #1E3C62; font-size: 15px; font-weight: 800; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
+.walking-dialog-header #walking-restaurant { color: #6b6b62; font-size: 12px; font-weight: 500; }
+.walking-dialog-header #walking-name { color: #1E3C62; font-size: 16px; font-weight: 800; }
 .walking-dialog button { border: 0; font: inherit; cursor: pointer; touch-action: manipulation; }
 .walking-close { flex: 0 0 40px; width: 40px; height: 40px; background: transparent; color: #1E3C62; font-size: 26px !important; line-height: 1; }
 .walking-dialog button:focus-visible { outline: 2px solid #1E3C62; outline-offset: -3px; }
-.walking-content { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: start; gap: 14px; }
+.walking-content { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: stretch; gap: 14px; }
 .walking-gallery { position: relative; min-width: 0; margin: 0; }
 .walking-copy { min-width: 0; }
 .walking-gallery[hidden] + .walking-copy { grid-column: 1 / -1; }
 .walking-copy h3 { margin: 0 0 6px; color: #1E3C62; font-size: 12px; font-weight: 800; }
-.walking-photos { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: 10px; background: #f3f2ef; }
+.walking-photos { position: absolute; inset: 0; display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; border-radius: 0; background: #f3f2ef; }
 .walking-photos::-webkit-scrollbar { display: none; }
-.walking-photo { flex: 0 0 100%; min-width: 0; margin: 0; scroll-snap-align: start; }
-.walking-photo img { display: block; width: 100%; height: 170px; object-fit: contain; }
-.walking-photo-error { display: flex; align-items: center; justify-content: center; height: 150px; margin: 0; font-size: 12px; color: #6b6b62; }
-.walking-gallery-controls { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; font-size: 11px; color: #6b6b62; }
+.walking-photo { flex: 0 0 100%; min-width: 0; height: 100%; margin: 0; scroll-snap-align: start; }
+.walking-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.walking-photo-error { display: flex; align-items: center; justify-content: center; height: 100%; margin: 0; padding: 8px; box-sizing: border-box; font-size: 12px; color: #6b6b62; }
+.walking-gallery-controls { position: absolute; right: 6px; bottom: 6px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 2px 4px; border-radius: 20px; background: rgba(255,255,255,.9); font-size: 11px; color: #6b6b62; }
 .walking-gallery-controls button { width: 32px; height: 32px; padding: 0; border-radius: 50%; background: #f3f2ef; color: #1E3C62; font-size: 18px; }
 .walking-gallery-controls button:disabled { opacity: .35; cursor: default; }
 .walking-details { padding: 0 20px 22px; }
 .walking-arrow { margin: 0 5px; color: #B2DEE8; white-space: nowrap; }
 .walking-description { margin: 0; font-size: 12px; line-height: 1.8; word-break: keep-all; white-space: pre-line; overflow-wrap: anywhere; }
-.walking-info { margin: 0; }
-.walking-info dt { margin-top: 12px; color: #1E3C62; font-size: 11px; font-weight: 800; }
+.walking-info { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; margin: 16px 0 0; }
+.walking-info > div { min-width: 0; }
+.walking-info > div + div { border-left: 1px solid #DCD8D3; padding-left: 12px; }
+.walking-info dt { color: #1E3C62; font-size: 11px; font-weight: 800; }
 .walking-info dd { margin: 3px 0 0; color: #6b6b62; font-size: 12px; white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
+.walking-info #walking-address { font-size: 11px; white-space: nowrap; overflow-x: auto; scrollbar-width: thin; }
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
@@ -82,7 +87,7 @@ z-index: 10;
         </div>
         <div class="walking-copy"><h3>추천 산책 코스</h3><p id="walking-description" class="walking-description"></p></div>
       </div>
-      <dl class="walking-info"><dt>주소</dt><dd id="walking-address"></dd><dt>추천 카페</dt><dd id="walking-cafes"></dd></dl>
+      <dl class="walking-info"><div><dt>주소</dt><dd id="walking-address"></dd></div><div><dt>추천 카페</dt><dd id="walking-cafes"></dd></div></dl>
     </div>
   </article>
 </div>
