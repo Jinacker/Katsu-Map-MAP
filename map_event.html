@@ -52,7 +52,7 @@ z-index: 10;
 .walking-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .walking-photo-error { display: flex; align-items: center; justify-content: center; height: 100%; margin: 0; padding: 8px; box-sizing: border-box; font-size: 12px; color: #6b6b62; }
 .walking-gallery-controls { position: absolute; inset: 0; pointer-events: none; }
-.walking-gallery-controls button { position: absolute; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; width: 28px; height: 36px; padding: 0; border-radius: 0; background: transparent; color: #B2DEE8; font-size: 24px; font-weight: 700; line-height: 1; pointer-events: auto; }
+.walking-gallery-controls button { position: absolute; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; width: 28px; height: 36px; padding: 0; border-radius: 0; background: transparent; color: #1E3C62; pointer-events: auto; }
 #walking-photo-prev { left: 0; }
 #walking-photo-next { right: 0; }
 #walking-photo-count { display: none; }
@@ -84,9 +84,9 @@ z-index: 10;
         <div id="walking-gallery" class="walking-gallery">
           <div id="walking-photos" class="walking-photos" aria-label="산책 장소 사진"></div>
           <div id="walking-gallery-controls" class="walking-gallery-controls">
-            <button id="walking-photo-prev" type="button" aria-label="이전 사진">&lt;</button>
+            <button id="walking-photo-prev" type="button" aria-label="이전 사진"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6" /></svg></button>
             <span id="walking-photo-count" aria-live="polite"></span>
-            <button id="walking-photo-next" type="button" aria-label="다음 사진">&gt;</button>
+            <button id="walking-photo-next" type="button" aria-label="다음 사진"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6" /></svg></button>
           </div>
         </div>
         <div class="walking-copy"><h3>추천 산책 코스</h3><p id="walking-description" class="walking-description"></p></div>
@@ -289,8 +289,8 @@ const INNER_HOLE = 'Zm0,56a32,32,0,1,1-32,32A32,32,0,0,1,128,72Z';
 const getMarkerPinImage = (level, isHunterPick = false, isSelected = false, isEventPin = false, isWalkingTarget = false) => {
   const cacheKey = `${level}-${isHunterPick}-${isSelected}-${isEventPin}-${isWalkingTarget}`;
   if (markerPinImageCache[cacheKey]) return markerPinImageCache[cacheKey];
-  const color = isWalkingTarget ? '#FFCC33' : isEventPin ? '#1E3C62' : (levelProperties[level] || levelProperties.default).color;
-  const stroke = isWalkingTarget ? '#C99500' : isSelected ? SELECTED_PIN_STROKE : DEFAULT_PIN_STROKE;
+  const color = isEventPin ? '#1E3C62' : (levelProperties[level] || levelProperties.default).color;
+  const stroke = isWalkingTarget ? '#FFCC33' : isSelected ? SELECTED_PIN_STROKE : DEFAULT_PIN_STROKE;
   const strokeWidth = isWalkingTarget ? 10 : isSelected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
   let svg;
   if (isHunterPick || isEventPin) {
@@ -590,12 +590,15 @@ const WALKING_PLACES = [
 ];
 
 const walkingPinImages = {};
-const getWalkingPinImage = (selected = false) => {
-  if (walkingPinImages[selected]) return walkingPinImages[selected];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="#B2DEE8" stroke="${selected ? '#1E3C62' : DEFAULT_PIN_STROKE}" stroke-width="${selected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH}" d="${OUTER_PIN}"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🪿</text></svg>`;
+const getWalkingPinImage = (selected = false, target = false) => {
+  const cacheKey = `${selected}-${target}`;
+  if (walkingPinImages[cacheKey]) return walkingPinImages[cacheKey];
+  const stroke = target ? '#FFCC33' : selected ? '#1E3C62' : DEFAULT_PIN_STROKE;
+  const strokeWidth = target ? 10 : selected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="#B2DEE8" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🪿</text></svg>`;
   const url = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
-  walkingPinImages[selected] = new kakao.maps.MarkerImage(url, new kakao.maps.Size(36, 52), { offset: new kakao.maps.Point(18, 47) });
-  return walkingPinImages[selected];
+  walkingPinImages[cacheKey] = new kakao.maps.MarkerImage(url, new kakao.maps.Size(36, 52), { offset: new kakao.maps.Point(18, 47) });
+  return walkingPinImages[cacheKey];
 };
 
 const walkingModal = document.getElementById('walking-modal');
@@ -608,24 +611,46 @@ let selectedWalkingMarker = null;
 let walkingPhotoCount = 0;
 let focusBeforeWalking = null;
 let selectedWalkingPlace = null;
+let walkingConnectionDirection = 'toRestaurant';
 let walkingTargetRestaurant = null;
+let walkingTargetPlace = null;
 let walkingConnection = null;
 let walkingConnectionFrame = null;
 
 const normalizeWalkingRestaurantName = (name) => String(name ?? '').normalize('NFKC').replace(/\s+/g, '');
 
-const clearWalkingConnection = (redraw = true) => {
+const updateWalkingMarkerImages = () => {
+  window.walkingMarkers.forEach((marker, index) => marker.setImage(getWalkingPinImage(
+    marker === selectedWalkingMarker, WALKING_PLACES[index] === walkingTargetPlace,
+  )));
+};
+
+// 목록 재전송으로 객체가 교체돼도 선택 당시와 같은 가게핀의 테두리는 유지한다.
+const isWalkingTargetRestaurant = (restaurant) => walkingTargetRestaurant !== null &&
+  restaurant.id === walkingTargetRestaurant.id &&
+  normalizeWalkingRestaurantName(restaurant.name) === normalizeWalkingRestaurantName(walkingTargetRestaurant.name) &&
+  Number(restaurant.lat) === Number(walkingTargetRestaurant.lat) &&
+  Number(restaurant.lng) === Number(walkingTargetRestaurant.lng);
+
+const clearWalkingConnection = () => {
   if (walkingConnectionFrame !== null) window.cancelAnimationFrame(walkingConnectionFrame);
   walkingConnectionFrame = null;
   if (walkingConnection) walkingConnection.setMap(null);
   walkingConnection = null;
-  const hadTarget = walkingTargetRestaurant !== null;
   walkingTargetRestaurant = null;
-  if (redraw && hadTarget) updateMarkers(currentRestaurants);
+  walkingTargetPlace = null;
+  selectedWalkingMarker = null;
+  updateWalkingMarkerImages();
 };
 
-const showWalkingConnection = (place) => {
-  clearWalkingConnection(false);
+const showWalkingConnection = (place, direction = 'toRestaurant') => {
+  if (walkingConnection && selectedWalkingPlace === place && walkingConnectionDirection === direction) return;
+  clearWalkingConnection();
+  selectedWalkingPlace = place;
+  walkingConnectionDirection = direction;
+  if (!place) { updateMarkers(currentRestaurants); return; }
+  selectedWalkingMarker = direction === 'toRestaurant' ? window.walkingMarkers[WALKING_PLACES.indexOf(place)] : null;
+  updateWalkingMarkerImages();
   const name = normalizeWalkingRestaurantName(place.restaurant);
   const matches = currentRestaurants.filter((restaurant) =>
     normalizeWalkingRestaurantName(restaurant.name) === name &&
@@ -634,47 +659,59 @@ const showWalkingConnection = (place) => {
     Number.isFinite(Number(restaurant.lat)) && Number.isFinite(Number(restaurant.lng)) &&
     Math.abs(Number(restaurant.lat)) <= 90 && Math.abs(Number(restaurant.lng)) <= 180);
   // 필터에서 빠졌거나 같은 이름이 여러 개인 가게를 다른 가게로 추측해 연결하지 않는다.
-  walkingTargetRestaurant = matches.length === 1 ? matches[0] : null;
   updateMarkers(currentRestaurants);
-  if (!walkingTargetRestaurant) return;
+  if (matches.length !== 1) return;
+  const restaurant = matches[0];
 
-  const start = new kakao.maps.LatLng(place.lat, place.lng);
-  const targetLat = Number(walkingTargetRestaurant.lat);
-  const targetLng = Number(walkingTargetRestaurant.lng);
+  const startLat = direction === 'toRestaurant' ? place.lat : Number(restaurant.lat);
+  const startLng = direction === 'toRestaurant' ? place.lng : Number(restaurant.lng);
+  const targetLat = direction === 'toRestaurant' ? Number(restaurant.lat) : place.lat;
+  const targetLng = direction === 'toRestaurant' ? Number(restaurant.lng) : place.lng;
+  const start = new kakao.maps.LatLng(startLat, startLng);
   const end = new kakao.maps.LatLng(targetLat, targetLng);
   const connection = new kakao.maps.Polyline({
     map,
     path: [start, start],
     strokeWeight: 4,
-    strokeColor: '#B2DEE8',
+    strokeColor: '#1E3C62',
     strokeOpacity: 1,
     strokeStyle: 'dash',
     endArrow: true,
     zIndex: 0,
   });
   walkingConnection = connection;
+  const arrive = () => {
+    if (walkingConnection !== connection) return;
+    walkingConnectionFrame = null;
+    if (direction === 'toRestaurant') walkingTargetRestaurant = restaurant;
+    else walkingTargetPlace = place;
+    updateWalkingMarkerImages();
+    updateMarkers(currentRestaurants);
+  };
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
     connection.setPath([start, end]);
+    arrive();
     return;
   }
 
-  // 약 1.2초 동안 20단계로 늘려 점선이 차례로 찍히는 느낌을 준다.
+  // 약 0.7초 동안 20단계로 늘리고, 끝점에 닿은 뒤에만 상대 핀을 강조한다.
   let startedAt = null;
   let previousStep = 0;
   const draw = (now) => {
     if (walkingConnection !== connection) return;
     if (startedAt === null) startedAt = now;
-    const step = Math.min(20, Math.floor((now - startedAt) / 60) + 1);
+    const step = Math.min(20, Math.floor((now - startedAt) / 35) + 1);
     if (step !== previousStep) {
       const progress = step / 20;
       const tip = step === 20 ? end : new kakao.maps.LatLng(
-        place.lat + (targetLat - place.lat) * progress,
-        place.lng + (targetLng - place.lng) * progress,
+        startLat + (targetLat - startLat) * progress,
+        startLng + (targetLng - startLng) * progress,
       );
       connection.setPath([start, tip]);
       previousStep = step;
     }
-    walkingConnectionFrame = step < 20 ? window.requestAnimationFrame(draw) : null;
+    if (step < 20) walkingConnectionFrame = window.requestAnimationFrame(draw);
+    else arrive();
   };
   walkingConnectionFrame = window.requestAnimationFrame(draw);
 };
@@ -683,10 +720,7 @@ const closeWalkingModal = () => {
   if (walkingModal.hidden) return;
   walkingModal.hidden = true;
   document.getElementById('map').removeAttribute('aria-hidden');
-  if (selectedWalkingMarker) selectedWalkingMarker.setImage(getWalkingPinImage());
-  selectedWalkingMarker = null;
-  selectedWalkingPlace = null;
-  clearWalkingConnection();
+  // 모달 표시만 닫는다. 연결선·도착 강조는 다음 핀을 누르기 전까지 유지한다.
   focusBeforeWalking?.focus?.();
   focusBeforeWalking = null;
 };
@@ -714,12 +748,9 @@ document.addEventListener('keydown', (event) => {
   }
 });
 
-const openWalkingModal = (place, marker) => {
+const openWalkingModal = (place) => {
   clearSelectedRestaurant();
   closeWalkingModal();
-  selectedWalkingPlace = place;
-  selectedWalkingMarker = marker;
-  marker.setImage(getWalkingPinImage(true));
   focusBeforeWalking = document.activeElement;
   for (const [id, text] of Object.entries({
     'walking-restaurant': place.restaurant,
@@ -762,7 +793,7 @@ const createWalkingMarkers = () => {
   WALKING_PLACES.forEach((place) => {
     const position = new kakao.maps.LatLng(place.lat, place.lng);
     const marker = new kakao.maps.Marker({ map, position, image: getWalkingPinImage(), title: `산책 · ${place.name}`, zIndex: 0 });
-    kakao.maps.event.addListener(marker, 'click', () => openWalkingModal(place, marker));
+    kakao.maps.event.addListener(marker, 'click', () => openWalkingModal(place));
     const overlay = new kakao.maps.CustomOverlay({
       position,
       content: `<div style="margin-top:-4px;background:rgba(255,255,255,.9);padding:2px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#1E3C62;white-space:nowrap;box-shadow:0 1px 3px #0002;pointer-events:none">${escapeHtml(place.name.split('\n')[0])}</div>`,
@@ -780,7 +811,7 @@ let currentEventPinConfig = null;
 // 이벤트 참여 가게도 일반 핀과 같은 SVG·크기·앵커를 쓰고, 남색 바탕과 오리로 구분한다.
 const getEventPinImage = (restaurant, selected) => {
   if (!currentEventPinConfig?.ids.has(restaurant.id)) return null;
-  const isWalkingTarget = restaurant === walkingTargetRestaurant;
+  const isWalkingTarget = isWalkingTargetRestaurant(restaurant);
   return getMarkerPinImage(restaurant.recommendLevel, false, Boolean(selected), true, isWalkingTarget);
 };
 let selectedRestaurantLatLng = null;
@@ -817,7 +848,7 @@ const updateMarkers = (restaurants) => {
       restaurant.lat === selectedRestaurantLatLng.lat &&
       restaurant.lng === selectedRestaurantLatLng.lng;
     const props = levelProperties[restaurant.recommendLevel] || levelProperties.default;
-    const isWalkingTarget = restaurant === walkingTargetRestaurant;
+    const isWalkingTarget = isWalkingTargetRestaurant(restaurant);
 
     const marker = new kakao.maps.Marker({
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
@@ -848,6 +879,8 @@ const updateMarkers = (restaurants) => {
           updateMarkers(currentRestaurants);
         }
       }
+      const places = WALKING_PLACES.filter((place) => normalizeWalkingRestaurantName(place.restaurant) === normalizeWalkingRestaurantName(restaurant.name));
+      showWalkingConnection(places.length === 1 ? places[0] : null, 'toPlace');
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SHOW_DIRECTIONS', payload: restaurant }));
       }
@@ -860,7 +893,7 @@ const updateMarkers = (restaurants) => {
     const showLabel = window.map.getLevel() < 7;
     const overlay = new kakao.maps.CustomOverlay({
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
-      content: `<div style="margin-top:-4px;background:${isWalkingTarget ? '#FFCC33' : 'rgba(255,255,255,0.85)'};padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:${isWalkingTarget ? '#1E3C62' : '#333'};white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${escapeHtml(displayName)}</div>`,
+      content: `<div style="margin-top:-4px;background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${escapeHtml(displayName)}</div>`,
       xAnchor: 0.5,
       yAnchor: 0,
       zIndex: isWalkingTarget ? 998 : 2,
@@ -884,7 +917,8 @@ const handleMessage = (event) => {
     if (message.type === 'UPDATE_RESTAURANTS' && Array.isArray(message.payload)) {
       currentRestaurants = message.payload;
       selectedRestaurantLatLng = null;
-      if (selectedWalkingPlace) showWalkingConnection(selectedWalkingPlace);
+      // 이미 그린 선은 선택 당시 좌표로 유지한다. 필터·목록 재전송 때문에 다시 재생하지 않는다.
+      if (selectedWalkingPlace && !walkingConnection) showWalkingConnection(selectedWalkingPlace, walkingConnectionDirection);
       else updateMarkers(currentRestaurants);
     }
     else if (message.type === 'UPDATE_EVENT_CONFIG') {
