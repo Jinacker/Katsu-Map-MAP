@@ -155,7 +155,7 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 window.map = map;
 
 // 축소 상태는 전체 미리보기, 확대 상태는 원본 공간정보의 SVG 타일을 표시한다.
-// 타일은 화면에 보이는 구역만 유지하며 모든 디자인 레이어는 핀 아래에 둔다.
+// 타일은 화면 주변 한 칸까지 유지하며 모든 디자인 레이어는 핀 아래에 둔다.
 if (typeof kakao.maps.AbstractOverlay === 'function') {
   const designMap = {
     width: 3072,
@@ -170,8 +170,11 @@ if (typeof kakao.maps.AbstractOverlay === 'function') {
     this.node = document.createElement('div');
     this.node.setAttribute('aria-hidden', 'true');
     this.node.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:0;pointer-events:none;';
-    this.node.appendChild(image);
-    this.overview = image;
+    // 이미지 디코딩·타일 교체 중에도 디자인 영역의 불투명 바탕은 항상 남긴다.
+    this.overview = document.createElement('div');
+    this.overview.style.cssText = `position:absolute;left:0;top:0;width:${designMap.width}px;height:${designMap.height}px;background:#FDFBF6;transform-origin:0 0;pointer-events:none;`;
+    this.overview.appendChild(image);
+    this.node.appendChild(this.overview);
     this.tiles = new Map();
     this.northWest = new kakao.maps.LatLng(...designMap.northWest);
     this.northEast = new kakao.maps.LatLng(...designMap.northEast);
@@ -179,9 +182,13 @@ if (typeof kakao.maps.AbstractOverlay === 'function') {
   }
   EventDesignMap.prototype = new kakao.maps.AbstractOverlay();
   EventDesignMap.prototype.onAdd = function() {
-    const panel = this.getPanels().overlayLayer;
-    // 같은 z-index 0인 산책핀도 위에 남도록 항상 첫 번째 노드에 넣는다.
-    panel.insertBefore(this.node, panel.firstChild);
+    const panels = this.getPanels();
+    const pinPanel = panels.overlayLayer;
+    // SDK가 줌 중 overlayLayer를 숨기므로 그 안에 배경을 넣지 않는다.
+    // 지도 이동 컨테이너는 공유하되 도형·핀 패널 앞에 별도 배경 패널을 둔다.
+    const parent = pinPanel.parentNode;
+    const reference = panels.graphicsLayer?.parentNode === parent ? panels.graphicsLayer : pinPanel;
+    parent.insertBefore(this.node, reference);
   };
   EventDesignMap.prototype.draw = function() {
     const projection = this.getProjection();
@@ -207,7 +214,7 @@ if (typeof kakao.maps.AbstractOverlay === 'function') {
     const determinant = x.x * y.y - x.y * y.x;
     if (!width || !height || !determinant) return;
 
-    // 가시 영역을 타일 좌표로 역변환해 현재 화면에 필요한 타일만 불러온다.
+    // 가시 영역에 한 칸의 여유를 두어 드래그로 들어올 타일을 미리 불러온다.
     const bounds = map.getBounds();
     const viewNE = projection.pointFromCoords(bounds.getNorthEast());
     const viewSW = projection.pointFromCoords(bounds.getSouthWest());
@@ -219,10 +226,10 @@ if (typeof kakao.maps.AbstractOverlay === 'function') {
       const dy = py - northWest.y;
       return { column: (dx * y.y - dy * y.x) / determinant, row: (x.x * dy - x.y * dx) / determinant };
     });
-    const firstColumn = Math.max(0, Math.floor(Math.min(...corners.map(p => p.column))));
-    const lastColumn = Math.min(designMap.columns - 1, Math.floor(Math.max(...corners.map(p => p.column))));
-    const firstRow = Math.max(0, Math.floor(Math.min(...corners.map(p => p.row))));
-    const lastRow = Math.min(designMap.rows - 1, Math.floor(Math.max(...corners.map(p => p.row))));
+    const firstColumn = Math.max(0, Math.floor(Math.min(...corners.map(p => p.column))) - 1);
+    const lastColumn = Math.min(designMap.columns - 1, Math.floor(Math.max(...corners.map(p => p.column))) + 1);
+    const firstRow = Math.max(0, Math.floor(Math.min(...corners.map(p => p.row))) - 1);
+    const lastRow = Math.min(designMap.rows - 1, Math.floor(Math.max(...corners.map(p => p.row))) + 1);
     const visible = new Set();
     for (let row = firstRow; row <= lastRow; row++) {
       for (let column = firstColumn; column <= lastColumn; column++) {
