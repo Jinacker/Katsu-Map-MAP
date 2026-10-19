@@ -51,10 +51,12 @@ z-index: 10;
 .walking-photo { flex: 0 0 100%; min-width: 0; height: 100%; margin: 0; scroll-snap-align: start; }
 .walking-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .walking-photo-error { display: flex; align-items: center; justify-content: center; height: 100%; margin: 0; padding: 8px; box-sizing: border-box; font-size: 12px; color: #6b6b62; }
-.walking-gallery-controls { position: absolute; right: 4px; bottom: 4px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 0; font-size: 10px; color: #1E3C62; text-shadow: 0 1px 2px #fff; }
-.walking-gallery-controls button { width: 24px; height: 24px; padding: 0; border-radius: 50%; background: rgba(255,255,255,.9); color: #1E3C62; font-size: 14px; text-shadow: none; }
+.walking-gallery-controls { position: absolute; inset: 0; pointer-events: none; }
+.walking-gallery-controls button { position: absolute; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; width: 28px; height: 36px; padding: 0; border-radius: 0; background: transparent; color: #B2DEE8; font-size: 24px; font-weight: 700; line-height: 1; pointer-events: auto; }
+#walking-photo-prev { left: 0; }
+#walking-photo-next { right: 0; }
 #walking-photo-count { display: none; }
-.walking-gallery-controls button:disabled { opacity: .35; cursor: default; }
+.walking-gallery-controls button:disabled { visibility: hidden; pointer-events: none; }
 .walking-details { padding: 0 20px 22px; }
 .walking-arrow { margin: 0 5px; color: #B2DEE8; white-space: nowrap; }
 .walking-description { margin: 0; font-size: 12px; line-height: 1.8; word-break: keep-all; white-space: pre-line; overflow-wrap: anywhere; }
@@ -284,12 +286,12 @@ const DEFAULT_PIN_STROKE_WIDTH = 6;
 const OUTER_PIN = 'M128,16a88.1,88.1,0,0,0-88,88c0,75.3,80,132.17,83.41,134.55a8,8,0,0,0,9.18,0C136,236.17,216,179.3,216,104A88.1,88.1,0,0,0,128,16Z';
 const INNER_HOLE = 'Zm0,56a32,32,0,1,1-32,32A32,32,0,0,1,128,72Z';
 
-const getMarkerPinImage = (level, isHunterPick = false, isSelected = false, isEventPin = false) => {
-  const cacheKey = `${level}-${isHunterPick}-${isSelected}-${isEventPin}`;
+const getMarkerPinImage = (level, isHunterPick = false, isSelected = false, isEventPin = false, isWalkingTarget = false) => {
+  const cacheKey = `${level}-${isHunterPick}-${isSelected}-${isEventPin}-${isWalkingTarget}`;
   if (markerPinImageCache[cacheKey]) return markerPinImageCache[cacheKey];
-  const color = isEventPin ? '#1E3C62' : (levelProperties[level] || levelProperties.default).color;
-  const stroke = isSelected ? SELECTED_PIN_STROKE : DEFAULT_PIN_STROKE;
-  const strokeWidth = isSelected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
+  const color = isWalkingTarget ? '#FFCC33' : isEventPin ? '#1E3C62' : (levelProperties[level] || levelProperties.default).color;
+  const stroke = isWalkingTarget ? '#C99500' : isSelected ? SELECTED_PIN_STROKE : DEFAULT_PIN_STROKE;
+  const strokeWidth = isWalkingTarget ? 10 : isSelected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
   let svg;
   if (isHunterPick || isEventPin) {
     const emoji = isEventPin ? '🦆' : '🕵🏻‍♂️';
@@ -605,6 +607,77 @@ const walkingNext = document.getElementById('walking-photo-next');
 let selectedWalkingMarker = null;
 let walkingPhotoCount = 0;
 let focusBeforeWalking = null;
+let selectedWalkingPlace = null;
+let walkingTargetRestaurant = null;
+let walkingConnection = null;
+let walkingConnectionFrame = null;
+
+const normalizeWalkingRestaurantName = (name) => String(name ?? '').normalize('NFKC').replace(/\s+/g, '');
+
+const clearWalkingConnection = (redraw = true) => {
+  if (walkingConnectionFrame !== null) window.cancelAnimationFrame(walkingConnectionFrame);
+  walkingConnectionFrame = null;
+  if (walkingConnection) walkingConnection.setMap(null);
+  walkingConnection = null;
+  const hadTarget = walkingTargetRestaurant !== null;
+  walkingTargetRestaurant = null;
+  if (redraw && hadTarget) updateMarkers(currentRestaurants);
+};
+
+const showWalkingConnection = (place) => {
+  clearWalkingConnection(false);
+  const name = normalizeWalkingRestaurantName(place.restaurant);
+  const matches = currentRestaurants.filter((restaurant) =>
+    normalizeWalkingRestaurantName(restaurant.name) === name &&
+    restaurant.lat != null && restaurant.lng != null &&
+    restaurant.lat !== '' && restaurant.lng !== '' &&
+    Number.isFinite(Number(restaurant.lat)) && Number.isFinite(Number(restaurant.lng)) &&
+    Math.abs(Number(restaurant.lat)) <= 90 && Math.abs(Number(restaurant.lng)) <= 180);
+  // 필터에서 빠졌거나 같은 이름이 여러 개인 가게를 다른 가게로 추측해 연결하지 않는다.
+  walkingTargetRestaurant = matches.length === 1 ? matches[0] : null;
+  updateMarkers(currentRestaurants);
+  if (!walkingTargetRestaurant) return;
+
+  const start = new kakao.maps.LatLng(place.lat, place.lng);
+  const targetLat = Number(walkingTargetRestaurant.lat);
+  const targetLng = Number(walkingTargetRestaurant.lng);
+  const end = new kakao.maps.LatLng(targetLat, targetLng);
+  const connection = new kakao.maps.Polyline({
+    map,
+    path: [start, start],
+    strokeWeight: 4,
+    strokeColor: '#B2DEE8',
+    strokeOpacity: 1,
+    strokeStyle: 'dash',
+    endArrow: true,
+    zIndex: 0,
+  });
+  walkingConnection = connection;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+    connection.setPath([start, end]);
+    return;
+  }
+
+  // 약 1.2초 동안 20단계로 늘려 점선이 차례로 찍히는 느낌을 준다.
+  let startedAt = null;
+  let previousStep = 0;
+  const draw = (now) => {
+    if (walkingConnection !== connection) return;
+    if (startedAt === null) startedAt = now;
+    const step = Math.min(20, Math.floor((now - startedAt) / 60) + 1);
+    if (step !== previousStep) {
+      const progress = step / 20;
+      const tip = step === 20 ? end : new kakao.maps.LatLng(
+        place.lat + (targetLat - place.lat) * progress,
+        place.lng + (targetLng - place.lng) * progress,
+      );
+      connection.setPath([start, tip]);
+      previousStep = step;
+    }
+    walkingConnectionFrame = step < 20 ? window.requestAnimationFrame(draw) : null;
+  };
+  walkingConnectionFrame = window.requestAnimationFrame(draw);
+};
 
 const closeWalkingModal = () => {
   if (walkingModal.hidden) return;
@@ -612,6 +685,8 @@ const closeWalkingModal = () => {
   document.getElementById('map').removeAttribute('aria-hidden');
   if (selectedWalkingMarker) selectedWalkingMarker.setImage(getWalkingPinImage());
   selectedWalkingMarker = null;
+  selectedWalkingPlace = null;
+  clearWalkingConnection();
   focusBeforeWalking?.focus?.();
   focusBeforeWalking = null;
 };
@@ -642,6 +717,7 @@ document.addEventListener('keydown', (event) => {
 const openWalkingModal = (place, marker) => {
   clearSelectedRestaurant();
   closeWalkingModal();
+  selectedWalkingPlace = place;
   selectedWalkingMarker = marker;
   marker.setImage(getWalkingPinImage(true));
   focusBeforeWalking = document.activeElement;
@@ -679,6 +755,7 @@ const openWalkingModal = (place, marker) => {
   updateWalkingPhotoControls();
   document.getElementById('map').setAttribute('aria-hidden', 'true');
   walkingDialog.focus({ preventScroll: true });
+  showWalkingConnection(place);
 };
 
 const createWalkingMarkers = () => {
@@ -703,7 +780,8 @@ let currentEventPinConfig = null;
 // 이벤트 참여 가게도 일반 핀과 같은 SVG·크기·앵커를 쓰고, 남색 바탕과 오리로 구분한다.
 const getEventPinImage = (restaurant, selected) => {
   if (!currentEventPinConfig?.ids.has(restaurant.id)) return null;
-  return getMarkerPinImage(restaurant.recommendLevel, false, Boolean(selected), true);
+  const isWalkingTarget = restaurant === walkingTargetRestaurant;
+  return getMarkerPinImage(restaurant.recommendLevel, false, Boolean(selected), true, isWalkingTarget);
 };
 let selectedRestaurantLatLng = null;
 
@@ -739,6 +817,7 @@ const updateMarkers = (restaurants) => {
       restaurant.lat === selectedRestaurantLatLng.lat &&
       restaurant.lng === selectedRestaurantLatLng.lng;
     const props = levelProperties[restaurant.recommendLevel] || levelProperties.default;
+    const isWalkingTarget = restaurant === walkingTargetRestaurant;
 
     const marker = new kakao.maps.Marker({
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
@@ -746,8 +825,10 @@ const updateMarkers = (restaurants) => {
         restaurant.recommendLevel,
         Boolean(restaurant.isKatsuHunterPick || restaurant.is_katsu_hunter_pick),
         Boolean(isSelected),
+        false,
+        isWalkingTarget,
       ),
-      zIndex: isSelected ? 999 : (props.zIndex + 1),
+      zIndex: isWalkingTarget ? 998 : isSelected ? 999 : (props.zIndex + 1),
     });
 
     kakao.maps.event.addListener(marker, 'click', () => {
@@ -775,14 +856,14 @@ const updateMarkers = (restaurants) => {
     window.markers.push(marker);
 
     const rawName = restaurant.name || '';
-    const displayName = rawName.length > 8 ? rawName.slice(0, 8) + '..' : rawName;
+    const displayName = !isWalkingTarget && rawName.length > 8 ? rawName.slice(0, 8) + '..' : rawName;
     const showLabel = window.map.getLevel() < 7;
     const overlay = new kakao.maps.CustomOverlay({
       position: new kakao.maps.LatLng(restaurant.lat, restaurant.lng),
-      content: `<div style="margin-top:-4px;background:rgba(255,255,255,0.85);padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${displayName}</div>`,
+      content: `<div style="margin-top:-4px;background:${isWalkingTarget ? '#FFCC33' : 'rgba(255,255,255,0.85)'};padding:1px 5px;border-radius:5px;font:bold 9px -apple-system,sans-serif;color:${isWalkingTarget ? '#1E3C62' : '#333'};white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.18);pointer-events:none">${escapeHtml(displayName)}</div>`,
       xAnchor: 0.5,
       yAnchor: 0,
-      zIndex: 2,
+      zIndex: isWalkingTarget ? 998 : 2,
     });
     overlay.setMap(showLabel ? window.map : null);
     window.overlays.push(overlay);
@@ -803,7 +884,8 @@ const handleMessage = (event) => {
     if (message.type === 'UPDATE_RESTAURANTS' && Array.isArray(message.payload)) {
       currentRestaurants = message.payload;
       selectedRestaurantLatLng = null;
-      updateMarkers(currentRestaurants);
+      if (selectedWalkingPlace) showWalkingConnection(selectedWalkingPlace);
+      else updateMarkers(currentRestaurants);
     }
     else if (message.type === 'UPDATE_EVENT_CONFIG') {
       currentEventPinConfig = window.KatsuEventPins?.normalize(message.payload) || null;
@@ -824,6 +906,7 @@ const handleMessage = (event) => {
     else if (message.type === 'PAN_TO' && message.payload) {
       const { lat, lng, level, yOffset } = message.payload;
       if (lat != null && lng != null && window.map) {
+        closeWalkingModal();
         selectedRestaurantLatLng = { lat, lng };
         preserveSelectionOnNextViewChange = true;
         if (level != null) window.map.setLevel(level);
