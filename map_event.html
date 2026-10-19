@@ -425,7 +425,7 @@ const getMarkerPinImage = (level, isHunterPick = false, isSelected = false, isEv
   const strokeWidth = isWalkingTarget ? 10 : isSelected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
   let svg;
   if (isHunterPick || isEventPin) {
-    const emoji = isEventPin ? '🦆' : '🕵🏻‍♂️';
+    const emoji = '🕵🏻‍♂️';
     const backdrop = isEventPin ? '' : '<circle cx="128" cy="104" r="38" fill="rgba(255,255,255,0.92)"/>';
     svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/>${backdrop}<text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${emoji}</text></svg>`;
   } else {
@@ -726,7 +726,7 @@ const getWalkingPinImage = (selected = false, target = false) => {
   if (walkingPinImages[cacheKey]) return walkingPinImages[cacheKey];
   const stroke = target ? '#FFCC33' : selected ? '#1E3C62' : DEFAULT_PIN_STROKE;
   const strokeWidth = target ? 10 : selected ? SELECTED_PIN_STROKE_WIDTH : DEFAULT_PIN_STROKE_WIDTH;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="#B2DEE8" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🪿</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><path fill="#B2DEE8" stroke="${stroke}" stroke-width="${strokeWidth}" d="${OUTER_PIN}"/><text x="126" y="110" text-anchor="middle" dominant-baseline="middle" font-size="102" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">🦆</text></svg>`;
   const url = `data:image/svg+xml;base64,${window.btoa(unescape(encodeURIComponent(svg)))}`;
   walkingPinImages[cacheKey] = new kakao.maps.MarkerImage(url, new kakao.maps.Size(36, 52), { offset: new kakao.maps.Point(18, 47) });
   return walkingPinImages[cacheKey];
