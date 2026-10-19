@@ -32,7 +32,7 @@ z-index: 10;
 }
 .walking-modal[hidden], .walking-gallery[hidden], .walking-gallery-controls[hidden] { display: none; }
 .walking-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px 16px; box-sizing: border-box; background: rgba(16, 30, 46, .4); font: 14px/1.7 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif; color: #21221c; }
-.walking-dialog { width: 100%; max-width: 400px; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
+.walking-dialog { width: 100%; max-width: 400px; max-height: 50vh; max-height: 50dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
 .walking-dialog-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 20px; background: #fff; }
 .walking-dialog-header h2 { margin: 0; color: #1E3C62; font-size: 17px; font-weight: 800; }
 .walking-dialog button { border: 0; font: inherit; cursor: pointer; touch-action: manipulation; }
@@ -56,9 +56,6 @@ z-index: 10;
 .walking-info { margin: 0; }
 .walking-info dt { margin-top: 12px; color: #1E3C62; font-size: 11px; font-weight: 800; }
 .walking-info dd { margin: 3px 0 0; color: #6b6b62; font-size: 12px; white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
-/* WebView 위에 겹치는 앱 헤더와 기본 높이의 가게 목록을 피해 모달을 놓는다. */
-.native-map .walking-modal { align-items: flex-start; padding-top: 104px; padding-bottom: 160px; }
-@media (max-height: 500px) { .native-map .walking-modal { padding-top: 84px; padding-bottom: 100px; } }
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
