@@ -141,7 +141,7 @@ const defaultView = isViewAll ? koreaDefaultView : seoulDefaultView;
 
 const initialLat = parseQueryNumber(searchParams.get('lat')) ?? defaultView.lat;
 const initialLng = parseQueryNumber(searchParams.get('lng')) ?? defaultView.lng;
-const initialLevel = parseQueryNumber(searchParams.get('level')) ?? defaultView.level;
+const initialLevel = Math.min(10, parseQueryNumber(searchParams.get('level')) ?? defaultView.level);
 
 const map = new kakao.maps.Map(document.getElementById('map'), {
   center: new kakao.maps.LatLng(initialLat, initialLng),
@@ -170,6 +170,10 @@ if (typeof kakao.maps.AbstractOverlay === 'function') {
     this.node = document.createElement('div');
     this.node.setAttribute('aria-hidden', 'true');
     this.node.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:0;pointer-events:none;';
+    // 디자인 배경 아래에서 카카오 바닥 지도를 가린다. 핀·도형은 계속 위에 표시한다.
+    this.blackout = document.createElement('div');
+    this.blackout.style.cssText = 'position:absolute;background:#000;pointer-events:none;';
+    this.node.appendChild(this.blackout);
     // 이미지 디코딩·타일 교체 중에도 디자인 영역의 불투명 바탕은 항상 남긴다.
     this.overview = document.createElement('div');
     this.overview.style.cssText = `position:absolute;left:0;top:0;width:${designMap.width}px;height:${designMap.height}px;background:#FDFBF6;transform-origin:0 0;pointer-events:none;`;
@@ -192,6 +196,13 @@ if (typeof kakao.maps.AbstractOverlay === 'function') {
   };
   EventDesignMap.prototype.draw = function() {
     const projection = this.getProjection();
+    const center = projection.pointFromCoords(map.getCenter());
+    const viewport = document.getElementById('map');
+    // 드래그 중에도 가장자리가 비지 않도록 화면 주변 한 화면씩 더 가린다.
+    this.blackout.style.left = `${center.x - viewport.clientWidth * 1.5}px`;
+    this.blackout.style.top = `${center.y - viewport.clientHeight * 1.5}px`;
+    this.blackout.style.width = `${viewport.clientWidth * 3}px`;
+    this.blackout.style.height = `${viewport.clientHeight * 3}px`;
     const northWest = projection.pointFromCoords(this.northWest);
     const northEast = projection.pointFromCoords(this.northEast);
     const southWest = projection.pointFromCoords(this.southWest);
@@ -289,7 +300,7 @@ window.walkingOverlays = [];
 let preserveSelectionOnNextViewChange = false;
 let refreshWalkingConnection = null;
 
-map.setMaxLevel(13);
+map.setMaxLevel(10);
 
 kakao.maps.event.addListener(map, 'zoom_changed', () => {
   const show = map.getLevel() < 7;
