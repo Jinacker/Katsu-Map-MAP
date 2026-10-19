@@ -32,7 +32,7 @@ z-index: 10;
 }
 .walking-modal[hidden], .walking-gallery[hidden], .walking-gallery-controls[hidden] { display: none; }
 .walking-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px 16px; box-sizing: border-box; background: rgba(16, 30, 46, .4); font: 14px/1.7 -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif; color: #21221c; }
-.walking-dialog { width: 100%; max-width: 400px; max-height: 45vh; max-height: 45dvh; transform: translateY(-10vh); transform: translateY(-10dvh); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
+.walking-dialog { width: 100%; max-width: 400px; max-height: 50vh; max-height: 50dvh; transform: translateY(-10vh); transform: translateY(-10dvh); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; box-sizing: border-box; background: #fff; border-radius: 18px; box-shadow: 0 12px 48px #10202f30; }
 .walking-dialog:focus { outline: none; }
 .walking-dialog-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 20px; background: #fff; }
 .walking-dialog-header h2 { flex: 1; min-width: 0; margin: 0; color: #1E3C62; font-size: 15px; font-weight: 800; line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
@@ -51,8 +51,8 @@ z-index: 10;
 .walking-photo { flex: 0 0 100%; min-width: 0; height: 100%; margin: 0; scroll-snap-align: start; }
 .walking-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .walking-photo-error { display: flex; align-items: center; justify-content: center; height: 100%; margin: 0; padding: 8px; box-sizing: border-box; font-size: 12px; color: #6b6b62; }
-.walking-gallery-controls { position: absolute; right: 6px; bottom: 6px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 2px 4px; border-radius: 20px; background: rgba(255,255,255,.9); font-size: 11px; color: #6b6b62; }
-.walking-gallery-controls button { width: 32px; height: 32px; padding: 0; border-radius: 50%; background: #f3f2ef; color: #1E3C62; font-size: 18px; }
+.walking-gallery-controls { position: absolute; right: 4px; bottom: 4px; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 0; font-size: 10px; color: #1E3C62; text-shadow: 0 1px 2px #fff; }
+.walking-gallery-controls button { width: 24px; height: 24px; padding: 0; border-radius: 0; background: transparent; color: #1E3C62; font-size: 14px; text-shadow: 0 1px 2px #fff; }
 .walking-gallery-controls button:disabled { opacity: .35; cursor: default; }
 .walking-details { padding: 0 20px 22px; }
 .walking-arrow { margin: 0 5px; color: #B2DEE8; white-space: nowrap; }
@@ -62,7 +62,7 @@ z-index: 10;
 .walking-info > div + div { border-left: 1px solid #DCD8D3; padding-left: 12px; }
 .walking-info dt { color: #1E3C62; font-size: 11px; font-weight: 800; }
 .walking-info dd { margin: 3px 0 0; color: #6b6b62; font-size: 12px; white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; }
-.walking-info #walking-address { font-size: 11px; white-space: nowrap; overflow-x: auto; scrollbar-width: thin; }
+.walking-info #walking-address { font-size: 11px; }
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
@@ -81,9 +81,9 @@ z-index: 10;
         <div id="walking-gallery" class="walking-gallery">
           <div id="walking-photos" class="walking-photos" aria-label="산책 장소 사진"></div>
           <div id="walking-gallery-controls" class="walking-gallery-controls">
-            <button id="walking-photo-prev" type="button" aria-label="이전 사진">‹</button>
+            <button id="walking-photo-prev" type="button" aria-label="이전 사진">&lt;</button>
             <span id="walking-photo-count" aria-live="polite"></span>
-            <button id="walking-photo-next" type="button" aria-label="다음 사진">›</button>
+            <button id="walking-photo-next" type="button" aria-label="다음 사진">&gt;</button>
           </div>
         </div>
         <div class="walking-copy"><h3>추천 산책 코스</h3><p id="walking-description" class="walking-description"></p></div>
