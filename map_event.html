@@ -16,6 +16,7 @@ overflow: hidden;
 #map {
 position: absolute;
 top: 0; left: 0; right: 0; bottom: 0;
+background: #000;
 }
 #error {
 position: fixed;
@@ -70,6 +71,7 @@ z-index: 10;
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
+<script src="design-map-tiles/raster/manifest.js?v=20261019-native-1"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -143,9 +145,32 @@ const initialLat = parseQueryNumber(searchParams.get('lat')) ?? defaultView.lat;
 const initialLng = parseQueryNumber(searchParams.get('lng')) ?? defaultView.lng;
 const initialLevel = Math.min(7, parseQueryNumber(searchParams.get('level')) ?? defaultView.level);
 
+// 디자인을 별도 오버레이가 아닌 정식 바닥 타일로 사용한다.
+// SDK가 이미지 캐시·이동·핀치·줌 애니메이션을 함께 관리한다.
+const designTiles = window.KatsuEventDesignTiles;
+let eventMapTypeId;
+if (designTiles && typeof kakao.maps.Tileset === 'function' && typeof kakao.maps.Tileset.add === 'function') {
+  const tileRoot = '/design-map-tiles/raster';
+  const suffix = `?v=${designTiles.version}`;
+  const tileUrl = (x, y, level) => {
+    const range = designTiles.levels[level];
+    if (!range || x < range.xMin || x > range.xMax || y < range.yMin || y > range.yMax) {
+      return `${tileRoot}/black.webp${suffix}`;
+    }
+    return `${tileRoot}/${level}/${x}-${y}.webp${suffix}`;
+  };
+  kakao.maps.Tileset.add('SEONGBUKCHEON_DESIGN', new kakao.maps.Tileset(
+    designTiles.tileSize, designTiles.tileSize, tileUrl, [], false,
+    designTiles.minLevel, designTiles.maxLevel,
+  ));
+  eventMapTypeId = kakao.maps.MapTypeId.SEONGBUKCHEON_DESIGN;
+}
+
 const map = new kakao.maps.Map(document.getElementById('map'), {
   center: new kakao.maps.LatLng(initialLat, initialLng),
   level: initialLevel,
+  mapTypeId: eventMapTypeId,
+  maxLevel: 7,
   draggable: true,
   scrollwheel: true,
   disableDoubleClick: false,
@@ -153,146 +178,8 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 });
 
 window.map = map;
-
-// 축소 상태는 전체 미리보기, 확대 상태는 원본 공간정보의 SVG 타일을 표시한다.
-// 타일은 화면 주변 한 칸까지 유지하며 모든 디자인 레이어는 핀 아래에 둔다.
-if (typeof kakao.maps.AbstractOverlay === 'function') {
-  const designMap = {
-    width: 3072,
-    height: 2560,
-    columns: 12,
-    rows: 10,
-    northWest: [37.6098836511, 126.9852767468],
-    northEast: [37.6098718179, 127.0548610957],
-    southWest: [37.5637528190, 126.9852858302],
-  };
-  function EventDesignMap(image) {
-    this.node = document.createElement('div');
-    this.node.setAttribute('aria-hidden', 'true');
-    this.node.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;z-index:1;pointer-events:none;';
-    // 디자인 배경 아래에서 카카오 바닥 지도를 가린다. 핀·도형은 계속 위에 표시한다.
-    this.blackout = document.createElement('div');
-    this.blackout.style.cssText = 'position:absolute;background:#000;pointer-events:none;';
-    this.node.appendChild(this.blackout);
-    // 이미지 디코딩·타일 교체 중에도 디자인 영역의 불투명 바탕은 항상 남긴다.
-    this.overview = document.createElement('div');
-    this.overview.style.cssText = `position:absolute;left:0;top:0;width:${designMap.width}px;height:${designMap.height}px;background:#FDFBF6;transform-origin:0 0;pointer-events:none;`;
-    this.overview.appendChild(image);
-    this.node.appendChild(this.overview);
-    this.tiles = new Map();
-    this.northWest = new kakao.maps.LatLng(...designMap.northWest);
-    this.northEast = new kakao.maps.LatLng(...designMap.northEast);
-    this.southWest = new kakao.maps.LatLng(...designMap.southWest);
-  }
-  EventDesignMap.prototype = new kakao.maps.AbstractOverlay();
-  EventDesignMap.prototype.onAdd = function() {
-    const panels = this.getPanels();
-    const pinPanel = panels.overlayLayer;
-    // SDK가 줌 중 overlayLayer를 숨기므로 그 안에 배경을 넣지 않는다.
-    // 지도 이동 컨테이너는 공유하되 도형·핀 패널 앞에 별도 배경 패널을 둔다.
-    // 기본 타일은 z-index 0/1을 번갈아 쓰므로 배경도 1로 두고 DOM 순서로 위에 올린다.
-    // 같은 순서 1인 도형·핀 패널보다 먼저 삽입해 핀과 연결선은 배경 위에 남긴다.
-    const parent = pinPanel.parentNode;
-    const reference = panels.graphicsLayer?.parentNode === parent ? panels.graphicsLayer : pinPanel;
-    parent.insertBefore(this.node, reference);
-  };
-  EventDesignMap.prototype.draw = function() {
-    const projection = this.getProjection();
-    const center = projection.pointFromCoords(map.getCenter());
-    const viewport = document.getElementById('map');
-    // 드래그 중에도 가장자리가 비지 않도록 화면 주변 한 화면씩 더 가린다.
-    this.blackout.style.left = `${center.x - viewport.clientWidth * 1.5}px`;
-    this.blackout.style.top = `${center.y - viewport.clientHeight * 1.5}px`;
-    this.blackout.style.width = `${viewport.clientWidth * 3}px`;
-    this.blackout.style.height = `${viewport.clientHeight * 3}px`;
-    const northWest = projection.pointFromCoords(this.northWest);
-    const northEast = projection.pointFromCoords(this.northEast);
-    const southWest = projection.pointFromCoords(this.southWest);
-    const across = { x: northEast.x - northWest.x, y: northEast.y - northWest.y };
-    const down = { x: southWest.x - northWest.x, y: southWest.y - northWest.y };
-    // 타일 로딩 중이거나 실패한 구역에는 기존 전체 이미지를 배경으로 남긴다.
-    this.overview.style.transform = `matrix(${across.x / designMap.width},${across.y / designMap.width},${down.x / designMap.height},${down.y / designMap.height},${northWest.x},${northWest.y})`;
-    const screenWidth = Math.hypot(across.x, across.y);
-    const useVectors = screenWidth * (window.devicePixelRatio || 1) > designMap.width;
-    if (!useVectors) {
-      this.tiles.forEach(tile => tile.remove());
-      this.tiles.clear();
-      return;
-    }
-
-    const x = { x: across.x / designMap.columns, y: across.y / designMap.columns };
-    const y = { x: down.x / designMap.rows, y: down.y / designMap.rows };
-    const width = Math.hypot(x.x, x.y);
-    const height = Math.hypot(y.x, y.y);
-    const determinant = x.x * y.y - x.y * y.x;
-    if (!width || !height || !determinant) return;
-
-    // 가시 영역에 한 칸의 여유를 두어 드래그로 들어올 타일을 미리 불러온다.
-    const bounds = map.getBounds();
-    const viewNE = projection.pointFromCoords(bounds.getNorthEast());
-    const viewSW = projection.pointFromCoords(bounds.getSouthWest());
-    const corners = [
-      [viewSW.x, viewNE.y], [viewNE.x, viewNE.y],
-      [viewSW.x, viewSW.y], [viewNE.x, viewSW.y],
-    ].map(([px, py]) => {
-      const dx = px - northWest.x;
-      const dy = py - northWest.y;
-      return { column: (dx * y.y - dy * y.x) / determinant, row: (x.x * dy - x.y * dx) / determinant };
-    });
-    const firstColumn = Math.max(0, Math.floor(Math.min(...corners.map(p => p.column))) - 1);
-    const lastColumn = Math.min(designMap.columns - 1, Math.floor(Math.max(...corners.map(p => p.column))) + 1);
-    const firstRow = Math.max(0, Math.floor(Math.min(...corners.map(p => p.row))) - 1);
-    const lastRow = Math.min(designMap.rows - 1, Math.floor(Math.max(...corners.map(p => p.row))) + 1);
-    const visible = new Set();
-    for (let row = firstRow; row <= lastRow; row++) {
-      for (let column = firstColumn; column <= lastColumn; column++) {
-        const key = `${column}-${row}`;
-        visible.add(key);
-        let tile = this.tiles.get(key);
-        if (!tile) {
-          tile = document.createElement('img');
-          tile.alt = '';
-          tile.draggable = false;
-          tile.decoding = 'async';
-          tile.style.cssText = 'position:absolute;left:0;top:0;max-width:none;transform-origin:0 0;z-index:1;pointer-events:none;visibility:hidden;';
-          tile.onload = () => { tile.style.visibility = 'visible'; };
-          tile.onerror = () => { tile.style.visibility = 'hidden'; };
-          tile.src = `/design-map-tiles/${key}.svg?v=20261019`;
-          this.tiles.set(key, tile);
-          this.node.appendChild(tile);
-        }
-        // SVG 자체를 현재 화면 크기로 그린다. 낮은 해상도로 그린 뒤 확대하지 않는다.
-        tile.style.width = `${width}px`;
-        tile.style.height = `${height}px`;
-        tile.style.transform = `matrix(${x.x / width},${x.y / width},${y.x / height},${y.y / height},${northWest.x + column * x.x + row * y.x},${northWest.y + column * x.y + row * y.y})`;
-      }
-    }
-    this.tiles.forEach((tile, key) => {
-      if (!visible.has(key)) {
-        tile.remove();
-        this.tiles.delete(key);
-      }
-    });
-  };
-  EventDesignMap.prototype.onRemove = function() {
-    this.tiles.forEach(tile => tile.remove());
-    this.tiles.clear();
-    if (this.node.parentNode) this.node.parentNode.removeChild(this.node);
-  };
-  const designImage = document.createElement('img');
-  designImage.width = designMap.width;
-  designImage.height = designMap.height;
-  designImage.alt = '';
-  designImage.draggable = false;
-  designImage.decoding = 'async';
-  designImage.setAttribute('aria-hidden', 'true');
-  designImage.style.cssText = `position:absolute;left:0;top:0;width:${designMap.width}px;height:${designMap.height}px;max-width:none;transform-origin:0 0;z-index:0;pointer-events:none;user-select:none;-webkit-user-drag:none;`;
-  designImage.style.visibility = 'hidden';
-  designImage.onload = () => { designImage.style.visibility = 'visible'; };
-  designImage.src = '/seongbukcheon-design-map.webp';
-  const layer = new EventDesignMap(designImage);
-  layer.setMap(map);
-}
+// SDK의 기본 격자 배경도 지워 타일 로딩 중에는 검정 바탕만 보이게 한다.
+document.getElementById('map').style.background = '#000';
 
 window.markers = [];
 window.overlays = [];
