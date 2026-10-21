@@ -16,7 +16,7 @@ overflow: hidden;
 #map {
 position: absolute;
 top: 0; left: 0; right: 0; bottom: 0;
-background: #5e5e5e;
+background: #fbfaf5;
 }
 #error {
 position: fixed;
@@ -71,7 +71,7 @@ z-index: 10;
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
-<script src="design-map-tiles/raster/manifest.js?v=20261019-native-7"></script>
+<script src="design-map-tiles/raster/manifest.js?v=20261021-v3"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -155,7 +155,7 @@ if (designTiles && typeof kakao.maps.Tileset === 'function' && typeof kakao.maps
   const tileUrl = (x, y, level) => {
     const range = designTiles.levels[level];
     if (!range || x < range.xMin || x > range.xMax || y < range.yMin || y > range.yMax) {
-      return `${tileRoot}/black.webp${suffix}`;
+      return `${tileRoot}/blank.webp${suffix}`;
     }
     return `${tileRoot}/${level}/${x}-${y}.webp${suffix}`;
   };
@@ -179,8 +179,8 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 });
 
 window.map = map;
-// 타일을 불러오는 동안에도 영역 밖과 같은 회색 바탕을 유지한다.
-document.getElementById('map').style.background = '#5e5e5e';
+// 타일을 불러오는 동안에도 디자인 배경과 같은 종이색 바탕을 유지한다.
+document.getElementById('map').style.background = '#fbfaf5';
 
 window.markers = [];
 window.overlays = [];
