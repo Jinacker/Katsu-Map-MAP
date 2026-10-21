@@ -20,15 +20,21 @@ test('실제 SDK의 성북천 타일 좌표가 모든 지원 레벨에서 디자
   assert.equal(config.minLevel, 3);
   assert.equal(config.maxLevel, 7);
   assert.deepEqual(JSON.parse(JSON.stringify(config.boundsWcong)), {
-    west: 496750, east: 512110, south: 1128950, north: 1141750,
+    west: 488819.33, east: 518158.34, south: 1120994.6, north: 1149407.69,
   });
+  // 중심 이동 범위와 초기 표시 범위는 배경 범위 안에 있고, 실제 SDK의 성북천 중심을 포함한다.
+  for (const inner of [config.navigationWcong, config.fitWcong]) {
+    assert.ok(inner.west > config.boundsWcong.west && inner.east < config.boundsWcong.east);
+    assert.ok(inner.south > config.boundsWcong.south && inner.north < config.boundsWcong.north);
+    assert.ok(inner.west < 504415.96 && inner.east > 504415.96 && inner.south < 1136233.05 && inner.north > 1136233.05);
+  }
   for (const [level, x, y] of sdkTiles) {
     const range = config.levels[level];
     assert.ok(range && x >= range.xMin && x <= range.xMax && y >= range.yMin && y <= range.yMax, `level ${level}`);
     const file = fs.readFileSync(`${__dirname}/design-map-tiles/raster/${level}/${x}-${y}.webp`);
     assert.equal(file.toString('ascii', 0, 4), 'RIFF');
     assert.equal(file.toString('ascii', 8, 12), 'WEBP');
-    assert.ok(file.length > 1000, '성북천 중심은 단색 검정 타일이어서는 안 된다');
+    assert.ok(file.length > 1000, '성북천 중심은 단색 바탕 타일이어서는 안 된다');
   }
 });
 
@@ -52,11 +58,11 @@ test('실제 HTML의 타일 URL 함수가 성북천은 이미지로, 범위 밖�
   for (const [level, x, y] of sdkTiles) {
     assert.equal(registered.url(x, y, level), `/design-map-tiles/raster/${level}/${x}-${y}.webp?v=${config.version}`);
   }
-  assert.equal(registered.url(0, 0, 4), `/design-map-tiles/raster/black.webp?v=${config.version}`);
+  assert.equal(registered.url(0, 0, 4), `/design-map-tiles/raster/blank.webp?v=${config.version}`);
   assert.ok(html.includes(`manifest.js?v=${config.version}`), 'HTML과 타일 버전이 함께 갱신되어야 한다');
 });
 
-test('배포 범위의 214개 디자인 타일이 모두 존재하고 제외한 1·2레벨은 남지 않는다', () => {
+test('배포 범위의 281개 디자인 타일이 모두 존재하고 제외한 1·2레벨은 남지 않는다', () => {
   let count = 0;
   for (const [level, range] of Object.entries(config.levels)) {
     assert.ok(Number(level) >= 3 && Number(level) <= 7);
@@ -70,7 +76,7 @@ test('배포 범위의 214개 디자인 타일이 모두 존재하고 제외한 
     assert.equal(fs.readdirSync(`${__dirname}/design-map-tiles/raster/${level}`).length, levelCount);
     count += levelCount;
   }
-  assert.equal(count, 214);
+  assert.equal(count, 281);
   for (const level of [1, 2]) assert.ok(!fs.existsSync(`${__dirname}/design-map-tiles/raster/${level}`));
-  assert.ok(fs.existsSync(`${__dirname}/design-map-tiles/raster/black.webp`));
+  assert.ok(fs.existsSync(`${__dirname}/design-map-tiles/raster/blank.webp`));
 });

@@ -16,7 +16,7 @@ overflow: hidden;
 #map {
 position: absolute;
 top: 0; left: 0; right: 0; bottom: 0;
-background: #5e5e5e;
+background: #fbfaf5;
 }
 #error {
 position: fixed;
@@ -71,7 +71,7 @@ z-index: 10;
 </style>
 <script src="config.js"></script>
 <script src="event-pins.js?v=20261012"></script>
-<script src="design-map-tiles/raster/manifest.js?v=20261019-native-7"></script>
+<script src="design-map-tiles/raster/manifest.js?v=20261021-v3"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -139,7 +139,13 @@ const parseQueryNumber = (value) => {
 
 const koreaDefaultView = { lat: 36.25, lng: 127.85, level: 13 };
 const seoulDefaultView = { lat: 37.5665, lng: 126.9780, level: 10 };
-const defaultView = isViewAll ? koreaDefaultView : seoulDefaultView;
+// 좌표 없이 열면 서울시청 대신 디자인 배경의 초기 표시 범위 중앙에서 시작한다.
+const fitBounds = window.KatsuEventDesignTiles?.fitWcong;
+const fitCenter = fitBounds && typeof kakao.maps.Coords === 'function'
+  ? new kakao.maps.Coords((fitBounds.west + fitBounds.east) / 2, (fitBounds.south + fitBounds.north) / 2).toLatLng()
+  : null;
+const eventDefaultView = fitCenter ? { lat: fitCenter.getLat(), lng: fitCenter.getLng(), level: 5 } : seoulDefaultView;
+const defaultView = isViewAll ? koreaDefaultView : eventDefaultView;
 
 const initialLat = parseQueryNumber(searchParams.get('lat')) ?? defaultView.lat;
 const initialLng = parseQueryNumber(searchParams.get('lng')) ?? defaultView.lng;
@@ -155,7 +161,7 @@ if (designTiles && typeof kakao.maps.Tileset === 'function' && typeof kakao.maps
   const tileUrl = (x, y, level) => {
     const range = designTiles.levels[level];
     if (!range || x < range.xMin || x > range.xMax || y < range.yMin || y > range.yMax) {
-      return `${tileRoot}/black.webp${suffix}`;
+      return `${tileRoot}/blank.webp${suffix}`;
     }
     return `${tileRoot}/${level}/${x}-${y}.webp${suffix}`;
   };
@@ -179,8 +185,8 @@ const map = new kakao.maps.Map(document.getElementById('map'), {
 });
 
 window.map = map;
-// 타일을 불러오는 동안에도 영역 밖과 같은 회색 바탕을 유지한다.
-document.getElementById('map').style.background = '#5e5e5e';
+// 타일을 불러오는 동안에도 디자인 배경과 같은 종이색 바탕을 유지한다.
+document.getElementById('map').style.background = '#fbfaf5';
 
 window.markers = [];
 window.overlays = [];
@@ -210,10 +216,13 @@ let focusedEventPinPosition = null;
 const restrictEventMapView = (() => {
   const bounds = designTiles?.boundsWcong;
   if (!bounds) return () => {};
+  // 이동 범위가 없는 이전 manifest는 배경 범위 전체를 중심 이동 범위로 쓴다.
+  const navigation = designTiles.navigationWcong ?? bounds;
   const element = document.getElementById('map');
   let correcting = false;
   let zooming = false;
   let frame = null;
+  let levelLimit = null;
   const constrain = () => {
     if (correcting || zooming) return;
     const width = element.clientWidth;
@@ -222,28 +231,49 @@ const restrictEventMapView = (() => {
     const projection = map.getProjection();
     const nw = projection.coordsFromContainerPoint(new kakao.maps.Point(0, 0)).toCoords();
     const se = projection.coordsFromContainerPoint(new kakao.maps.Point(width, height)).toCoords();
-    const halfWidth = Math.abs(se.getX() - nw.getX()) / 2;
-    const halfHeight = Math.abs(se.getY() - nw.getY()) / 2;
-    // WCONG는 미터의 2.5배다. 여백은 최대 1500m, 화면 각 축의 40%까지 허용한다.
-    const clampAxis = (value, start, end, halfSpan, focusValue) => {
-      const margin = Math.min(1500 * 2.5, halfSpan * .8);
-      let min = start - margin + halfSpan;
-      let max = end + margin - halfSpan;
-      if (min > max) min = max = (start + end) / 2;
-      // 선택한 핀을 중앙에 둘 수 있는 위치까지만 이동 경계를 확장한다.
+    const unitsX = Math.abs(se.getX() - nw.getX()) / width;
+    const unitsY = Math.abs(se.getY() - nw.getY()) / height;
+    // 화면 전체가 배경 안에 들어가는 가장 넓은 레벨까지만 축소를 허용한다. 레벨마다 배율은 2배다.
+    const level = map.getLevel();
+    let maxLevel = designTiles.minLevel;
+    for (let candidate = designTiles.maxLevel; candidate > designTiles.minLevel; candidate--) {
+      const scale = 2 ** (candidate - level);
+      if ((width + 4) * unitsX * scale <= bounds.east - bounds.west &&
+          (height + 4) * unitsY * scale <= bounds.north - bounds.south) {
+        maxLevel = candidate;
+        break;
+      }
+    }
+    if (maxLevel !== levelLimit) {
+      levelLimit = maxLevel;
+      map.setMaxLevel(maxLevel);
+    }
+    // 레벨을 바꾸면 zoom_changed 이후 새 배율로 다시 제한한다.
+    if (level > maxLevel) { map.setLevel(maxLevel); return; }
+    // 화면 가장자리는 배경 밖으로 나가지 않고, 중심은 이동 범위 안에 둔다. 투영 오차용으로 1px을 더 남긴다.
+    const clampAxis = (value, start, end, navStart, navEnd, halfSpan, focusValue) => {
+      const feasibleMin = start + halfSpan;
+      const feasibleMax = end - halfSpan;
+      if (feasibleMin > feasibleMax) return (start + end) / 2;
+      let min = Math.max(feasibleMin, navStart);
+      let max = Math.min(feasibleMax, navEnd);
+      if (min > max) { min = feasibleMin; max = feasibleMax; }
+      // 선택한 핀은 화면이 배경을 벗어나지 않는 범위에서 이동 범위 밖이어도 중앙에 둔다.
       if (Number.isFinite(focusValue)) {
-        min = Math.min(min, focusValue);
-        max = Math.max(max, focusValue);
+        min = Math.max(feasibleMin, Math.min(min, focusValue));
+        max = Math.min(feasibleMax, Math.max(max, focusValue));
       }
       return Math.max(min, Math.min(max, value));
     };
     const center = map.getCenter().toCoords();
     const focus = focusedEventPinPosition?.toCoords();
-    const x = clampAxis(center.getX(), bounds.west, bounds.east, halfWidth, focus?.getX());
-    const y = clampAxis(center.getY(), bounds.south, bounds.north, halfHeight, focus?.getY());
+    const x = clampAxis(center.getX(), bounds.west, bounds.east, navigation.west, navigation.east,
+      (width / 2 + 1) * unitsX, focus?.getX());
+    const y = clampAxis(center.getY(), bounds.south, bounds.north, navigation.south, navigation.north,
+      (height / 2 + 1) * unitsY, focus?.getY());
     // 투영·픽셀 반올림 때문에 같은 위치를 반복 보정하지 않도록 한다.
-    if (Math.abs(x - center.getX()) < halfWidth * 3 / width &&
-        Math.abs(y - center.getY()) < halfHeight * 3 / height) return;
+    if (Math.abs(x - center.getX()) < unitsX * 1.5 &&
+        Math.abs(y - center.getY()) < unitsY * 1.5) return;
     correcting = true;
     try {
       map.setCenter(new kakao.maps.Coords(x, y).toLatLng());
